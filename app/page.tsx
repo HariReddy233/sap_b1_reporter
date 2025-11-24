@@ -8,11 +8,11 @@ import { loadSettings, saveSettings, clearSettings } from '@/lib/storage'
 import { cleanupSessionStorage } from '@/lib/indexeddb'
 
 const defaultSettings = {
-  sapServer: '',
-  companyDB: '',
-  userName: '',
-  password: '',
-  openaiApiKey: '', // Users should provide their own API key through the settings panel
+  sapServer: 'https://b1.ativy.mx:50097/b1s/v1/Login',
+  companyDB: 'MEDILIGHT_CG_TEST',
+  userName: 'manager',
+  password: 'Chung@890',
+  openaiApiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
   openaiModel: 'gpt-3.5-turbo',
 }
 

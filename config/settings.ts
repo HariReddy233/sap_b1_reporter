@@ -14,14 +14,14 @@ export interface OpenAIConfig {
 }
 
 export const defaultSAPB1Config: SAPB1Config = {
-  server: "https://localhost:50000",
-  companyDB: "SBODEMOUS",
+  server: "https://b1.ativy.mx:50097/b1s/v1/Login",
+  companyDB: "MEDILIGHT_CG_TEST",
   userName: "manager",
-  password: "1234",
+  password: "Chung@890",
 };
 
 export const defaultOpenAIConfig: OpenAIConfig = {
-  apiKey: "", // Users should provide their own API key through the settings panel
+  apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || "",
   model: "gpt-3.5-turbo",
 };
 
