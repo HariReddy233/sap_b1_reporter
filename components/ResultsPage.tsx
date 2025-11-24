@@ -139,9 +139,9 @@ export default function ResultsPage({ queryResult, originalQuery, onBack, initia
       </div>
 
       {/* Query Info Card - Compact and Modern */}
-      <div className="bg-white rounded-2xl shadow-lg p-5 border border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-2xl font-bold text-gray-800">Query Results</h2>
+      <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-200">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xl font-bold text-gray-800">Query Results</h2>
           <div className="flex items-center space-x-3">
             <div className="px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
               <span className="text-xs text-gray-600 font-medium">Object: </span>
@@ -158,21 +158,21 @@ export default function ResultsPage({ queryResult, originalQuery, onBack, initia
         </p>
       </div>
 
-      {/* Chart Type Selector - Only show recommended chart types */}
-      <div className="bg-white rounded-2xl shadow-lg p-5 border border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-800">Visualization Type</h3>
+      {/* Chart Type Selector - Compact Design */}
+      <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-200">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-bold text-gray-800">Visualization Type</h3>
           {recommendedTypes.length < 3 && (
             <span className="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md font-semibold border border-blue-200">
-              ✨ AI Recommended
+              ✨ Recommended
             </span>
           )}
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2.5">
           {recommendedTypes.includes('bar') && (
             <button
               onClick={() => setChartType('bar')}
-              className={`flex items-center space-x-2 px-5 py-2.5 rounded-lg transition-all font-medium text-sm ${
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
                 chartType === 'bar'
                   ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg scale-105'
                   : 'bg-gray-50 text-gray-700 hover:bg-blue-50 border border-gray-300 hover:border-blue-300'
@@ -185,7 +185,7 @@ export default function ResultsPage({ queryResult, originalQuery, onBack, initia
           {recommendedTypes.includes('pie') && (
             <button
               onClick={() => setChartType('pie')}
-              className={`flex items-center space-x-2 px-5 py-2.5 rounded-lg transition-all font-medium text-sm ${
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
                 chartType === 'pie'
                   ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg scale-105'
                   : 'bg-gray-50 text-gray-700 hover:bg-purple-50 border border-gray-300 hover:border-purple-300'
@@ -198,7 +198,7 @@ export default function ResultsPage({ queryResult, originalQuery, onBack, initia
           {recommendedTypes.includes('line') && (
             <button
               onClick={() => setChartType('line')}
-              className={`flex items-center space-x-2 px-5 py-2.5 rounded-lg transition-all font-medium text-sm ${
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
                 chartType === 'line'
                   ? 'bg-gradient-to-r from-green-500 to-teal-600 text-white shadow-lg scale-105'
                   : 'bg-gray-50 text-gray-700 hover:bg-green-50 border border-gray-300 hover:border-green-300'

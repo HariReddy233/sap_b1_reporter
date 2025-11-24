@@ -124,75 +124,81 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
   return (
     <div className="h-full w-full flex flex-col">
       <div className="bg-white shadow-2xl border border-gray-200 backdrop-blur-sm overflow-hidden flex flex-col h-full">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 md:px-8 py-3 flex-shrink-0">
+        {/* Header - Modern Design */}
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 md:px-8 py-4 flex-shrink-0 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-white mb-0.5">
+              <h2 className="text-2xl font-bold text-white mb-1 tracking-tight">
                 Settings
               </h2>
-              <p className="text-blue-100 text-xs">Configure your connections</p>
+              <p className="text-blue-100 text-sm font-medium">Configure your connections</p>
             </div>
             <button
               onClick={onCancel}
-              className="p-2 hover:bg-white/20 rounded-xl transition-all duration-200"
+              className="p-2.5 hover:bg-white/20 rounded-xl transition-all duration-300 hover:rotate-90 transform"
             >
               <X className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
+        {/* Tab Navigation - Modern Design */}
+        <div className="flex border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white flex-shrink-0 shadow-sm">
           <button
             onClick={() => setActiveTab('sap')}
-            className={`flex-1 px-6 py-2.5 text-center font-semibold transition-all duration-200 ${
+            className={`flex-1 px-6 py-3 text-center font-semibold transition-all duration-300 relative ${
               activeTab === 'sap'
-                ? 'bg-white text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
             }`}
           >
             <div className="flex items-center justify-center space-x-2">
-              <Server className="w-4 h-4" />
+              <Server className={`w-4 h-4 transition-transform duration-300 ${activeTab === 'sap' ? 'scale-110' : ''}`} />
               <span className="text-sm">SAP Business One</span>
             </div>
+            {activeTab === 'sap' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('openai')}
-            className={`flex-1 px-6 py-2.5 text-center font-semibold transition-all duration-200 ${
+            className={`flex-1 px-6 py-3 text-center font-semibold transition-all duration-300 relative ${
               activeTab === 'openai'
-                ? 'bg-white text-purple-600 border-b-2 border-purple-600'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+                ? 'bg-white text-purple-600 shadow-sm'
+                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
             }`}
           >
             <div className="flex items-center justify-center space-x-2">
-              <Cpu className="w-4 h-4" />
+              <Cpu className={`w-4 h-4 transition-transform duration-300 ${activeTab === 'openai' ? 'scale-110' : ''}`} />
               <span className="text-sm">OpenAI Configuration</span>
             </div>
+            {activeTab === 'openai' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-600 to-pink-600"></div>
+            )}
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col p-6 md:p-8 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col p-6 md:p-8 overflow-y-auto bg-gradient-to-b from-white to-gray-50">
           {/* SAP B1 Settings Page */}
           {activeTab === 'sap' && (
             <div className="space-y-6 flex-1">
-              {/* Page Header */}
+              {/* Page Header - Modern */}
               <div className="mb-8">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl">
-                    <Server className="w-6 h-6 text-white" />
+                <div className="flex items-center space-x-4 mb-3">
+                  <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-300">
+                    <Server className="w-7 h-7 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-800">SAP Business One</h3>
-                    <p className="text-sm text-gray-600">Service Layer Connection</p>
+                    <h3 className="text-2xl font-bold text-gray-800 tracking-tight">SAP Business One</h3>
+                    <p className="text-sm text-gray-600 font-medium">Service Layer Connection</p>
                   </div>
                 </div>
               </div>
-              {/* Form Fields */}
-              <div className="bg-gray-50 rounded-2xl p-6 md:p-8 border border-gray-200">
+              {/* Form Fields - Modern Card */}
+              <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-200 shadow-lg shadow-gray-100">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
                       <Server className="w-4 h-4 mr-2 text-blue-600" />
                       Server URL
                     </label>
@@ -200,12 +206,12 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                       type="text"
                       value={formData.sapServer}
                       onChange={(e) => setFormData({ ...formData, sapServer: e.target.value })}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-800 placeholder-gray-400"
+                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
                       placeholder="https://localhost:50000"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
                       <Database className="w-4 h-4 mr-2 text-blue-600" />
                       Company Database
                     </label>
@@ -213,12 +219,12 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                       type="text"
                       value={formData.companyDB}
                       onChange={(e) => setFormData({ ...formData, companyDB: e.target.value })}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-800 placeholder-gray-400"
+                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
                       placeholder="Database Name"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
                       <User className="w-4 h-4 mr-2 text-blue-600" />
                       Username
                     </label>
@@ -226,12 +232,12 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                       type="text"
                       value={formData.userName}
                       onChange={(e) => setFormData({ ...formData, userName: e.target.value })}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-800 placeholder-gray-400"
+                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
                       placeholder="username"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
                       <Lock className="w-4 h-4 mr-2 text-blue-600" />
                       Password
                     </label>
@@ -240,13 +246,13 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                         type={showPassword ? "text" : "password"}
                         value={formData.password}
                         onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full px-4 py-3 pr-12 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-800 placeholder-gray-400"
+                        className="w-full px-4 py-3.5 pr-12 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
                         placeholder="Password"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-colors p-1 rounded-lg hover:bg-gray-100"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-all duration-200 p-1.5 rounded-lg hover:bg-gray-100"
                       >
                         {showPassword ? (
                           <EyeOff className="w-5 h-5" />
@@ -258,13 +264,13 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                   </div>
                 </div>
                 
-                {/* Test Connection Button and Result */}
-                <div className="mt-6 pt-6 border-t border-gray-200">
+                {/* Test Connection Button and Result - Modern */}
+                <div className="mt-8 pt-6 border-t border-gray-200">
                   <button
                     type="button"
                     onClick={handleTestConnection}
                     disabled={testingConnection}
-                    className="flex items-center space-x-3 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                    className="flex items-center space-x-3 px-6 py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold transform hover:scale-105 disabled:transform-none"
                   >
                     {testingConnection ? (
                       <>
@@ -280,10 +286,10 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                   </button>
                   
                   {testResult && (
-                    <div className={`mt-4 p-4 rounded-xl flex items-start space-x-3 ${
+                    <div className={`mt-4 p-4 rounded-xl flex items-start space-x-3 shadow-md ${
                       testResult.success
-                        ? 'bg-green-50 border border-green-200'
-                        : 'bg-red-50 border border-red-200'
+                        ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200'
+                        : 'bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200'
                     }`}>
                       {testResult.success ? (
                         <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -291,7 +297,7 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                         <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                       )}
                       <div className="flex-1">
-                        <p className={`text-sm font-medium ${
+                        <p className={`text-sm font-semibold ${
                           testResult.success ? 'text-green-800' : 'text-red-800'
                         }`}>
                           {testResult.message}
@@ -307,23 +313,23 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
           {/* OpenAI Configuration Page */}
           {activeTab === 'openai' && (
             <div className="space-y-6 flex-1">
-              {/* Page Header */}
+              {/* Page Header - Modern */}
               <div className="mb-8">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="p-2.5 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl">
-                    <Cpu className="w-6 h-6 text-white" />
+                <div className="flex items-center space-x-4 mb-3">
+                  <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-300">
+                    <Cpu className="w-7 h-7 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-800">OpenAI Configuration</h3>
-                    <p className="text-sm text-gray-600">AI Model Settings</p>
+                    <h3 className="text-2xl font-bold text-gray-800 tracking-tight">OpenAI Configuration</h3>
+                    <p className="text-sm text-gray-600 font-medium">AI Model Settings</p>
                   </div>
                 </div>
               </div>
-              {/* Form Fields */}
-              <div className="bg-gray-50 rounded-2xl p-6 md:p-8 border border-gray-200">
+              {/* Form Fields - Modern Card */}
+              <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-200 shadow-lg shadow-gray-100">
                 <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
                       <Key className="w-4 h-4 mr-2 text-purple-600" />
                       API Key
                     </label>
@@ -332,13 +338,13 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                         type={showApiKey ? "text" : "password"}
                         value={formData.openaiApiKey}
                         onChange={(e) => setFormData({ ...formData, openaiApiKey: e.target.value })}
-                        className="w-full px-4 py-3 pr-12 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-gray-800 placeholder-gray-400"
+                        className="w-full px-4 py-3.5 pr-12 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
                         placeholder="sk-proj-..."
                       />
                       <button
                         type="button"
                         onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-colors p-1 rounded-lg hover:bg-gray-100"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-all duration-200 p-1.5 rounded-lg hover:bg-gray-100"
                       >
                         {showApiKey ? (
                           <EyeOff className="w-5 h-5" />
@@ -347,35 +353,35 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                         )}
                       </button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Get your API key from OpenAI platform</p>
+                    <p className="text-xs text-gray-500 mt-1.5 font-medium">Get your API key from OpenAI platform</p>
                   </div>
                   <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
                       <Cpu className="w-4 h-4 mr-2 text-purple-600" />
                       Model
                     </label>
                     <select
                       value={formData.openaiModel}
                       onChange={(e) => setFormData({ ...formData, openaiModel: e.target.value })}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-gray-800 cursor-pointer"
+                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all duration-300 text-gray-800 cursor-pointer shadow-sm hover:border-gray-300"
                     >
                       <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
                       <option value="gpt-4">GPT-4</option>
                       <option value="gpt-4-turbo">GPT-4 Turbo</option>
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">Select the AI model for query processing</p>
+                    <p className="text-xs text-gray-500 mt-1.5 font-medium">Select the AI model for query processing</p>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex justify-between items-center pt-4 mt-6 border-t border-gray-200 flex-shrink-0">
+          {/* Action Buttons - Modern */}
+          <div className="flex justify-between items-center pt-6 mt-6 border-t-2 border-gray-200 flex-shrink-0 bg-white rounded-b-2xl">
             <button
               type="button"
               onClick={onCancel}
-              className="px-6 py-3 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 font-semibold"
+              className="px-6 py-3 border-2 border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 font-semibold shadow-sm hover:shadow-md"
             >
               Cancel
             </button>
@@ -384,7 +390,7 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                 <button
                   type="button"
                   onClick={() => setActiveTab('openai')}
-                  className="flex items-center space-x-2 px-6 py-3 text-gray-600 hover:text-gray-800 transition-all duration-200 font-medium"
+                  className="flex items-center space-x-2 px-6 py-3 text-gray-600 hover:text-gray-800 transition-all duration-300 font-semibold hover:bg-gray-50 rounded-xl"
                 >
                   <span>Next: OpenAI Configuration</span>
                   <ArrowRight className="w-4 h-4" />
@@ -392,7 +398,7 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
               )}
               <button
                 type="submit"
-                className="px-8 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg flex items-center space-x-2 font-semibold"
+                className="px-8 py-3.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center space-x-2 font-semibold transform hover:scale-105"
               >
                 <Save className="w-5 h-5" />
                 <span>Save Settings</span>

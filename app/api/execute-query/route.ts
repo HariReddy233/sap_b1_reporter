@@ -536,7 +536,105 @@ async function getSAPB1Metadata(sessionId: string, server: string): Promise<stri
   }
 }
 
-// Analyze data structure and recommend chart types using OpenAI
+// Fast data analysis to recommend chart types (no API call, instant analysis)
+function analyzeDataForChartTypes(data: any[], query: string): ('pie' | 'bar' | 'line')[] {
+  try {
+    if (!data || data.length === 0) {
+      return ['bar'] // Default fallback
+    }
+
+    // Sample first record to analyze structure
+    const firstRecord = data[0]
+    if (!firstRecord || typeof firstRecord !== 'object') {
+      return ['bar'] // Default for non-object data
+    }
+
+    const fields = Object.keys(firstRecord)
+    const lowerQuery = query.toLowerCase()
+    
+    // Identify field types
+    const numericFields: string[] = []
+    const dateFields: string[] = []
+    const categoricalFields: string[] = []
+    
+    fields.forEach(field => {
+      const value = firstRecord[field]
+      const fieldLower = field.toLowerCase()
+      
+      // Check for date fields
+      if (fieldLower.includes('date') || fieldLower.includes('time') || 
+          fieldLower === 'docdate' || fieldLower === 'createdate' || 
+          fieldLower === 'updatedate' || fieldLower === 'postingdate') {
+        dateFields.push(field)
+      }
+      // Check for numeric fields
+      else if (typeof value === 'number' || 
+               (typeof value === 'string' && !isNaN(parseFloat(value)) && value.trim() !== '')) {
+        numericFields.push(field)
+      }
+      // Categorical fields
+      else if (typeof value === 'string' || typeof value === 'boolean') {
+        categoricalFields.push(field)
+      }
+    })
+
+    const recommendations: ('pie' | 'bar' | 'line')[] = []
+    
+    // Line Chart: Best for time series data
+    if (dateFields.length > 0 && numericFields.length > 0) {
+      // Check if query mentions time-related terms or if we have date fields
+      if (lowerQuery.includes('trend') || lowerQuery.includes('over time') || 
+          lowerQuery.includes('monthly') || lowerQuery.includes('yearly') ||
+          lowerQuery.includes('daily') || lowerQuery.includes('weekly') ||
+          lowerQuery.includes('sales') || lowerQuery.includes('revenue') ||
+          lowerQuery.includes('period') || lowerQuery.includes('date')) {
+        recommendations.push('line')
+      } else if (dateFields.length > 0) {
+        // If we have date fields, line chart is still a good option
+        recommendations.push('line')
+      }
+    }
+    
+    // Bar Chart: Good for comparisons, rankings, most data types (always include if we have numeric data)
+    if (numericFields.length > 0) {
+      recommendations.push('bar')
+    } else if (categoricalFields.length > 0) {
+      recommendations.push('bar') // Bar chart works for categorical data too
+    }
+    
+    // Pie Chart: Best for proportions with limited categories (2-8 ideal)
+    if (numericFields.length > 0 && categoricalFields.length > 0) {
+      // Check unique values in first categorical field (sample)
+      const firstCategoricalField = categoricalFields[0]
+      if (firstCategoricalField) {
+        const uniqueValues = new Set()
+        const sampleSize = Math.min(20, data.length)
+        for (let i = 0; i < sampleSize; i++) {
+          if (data[i] && data[i][firstCategoricalField]) {
+            uniqueValues.add(String(data[i][firstCategoricalField]))
+          }
+        }
+        // Pie chart is good if we have 2-8 categories (more restrictive for better UX)
+        if (uniqueValues.size >= 2 && uniqueValues.size <= 8) {
+          recommendations.push('pie')
+        }
+      }
+    }
+    
+    // Ensure at least one chart type
+    if (recommendations.length === 0) {
+      return ['bar'] // Default fallback
+    }
+    
+    // Remove duplicates and return
+    return Array.from(new Set(recommendations)) as ('pie' | 'bar' | 'line')[]
+  } catch (error) {
+    console.error('Error analyzing data for chart types:', error)
+    return ['bar'] // Default fallback
+  }
+}
+
+// Analyze data structure and recommend chart types using OpenAI (deprecated - kept for reference)
 async function recommendChartTypes(
   data: any[],
   originalQuery: string,
@@ -572,46 +670,19 @@ async function recommendChartTypes(
       }
     })
 
-    const prompt = `You are a data visualization expert. Analyze the following data structure and recommend the BEST chart types (up to 3) from: pie, bar, line.
+    const prompt = `Analyze data and recommend 1-3 chart types from: pie, bar, line.
 
-Data Sample (first ${sampleSize} of ${data.length} records):
-${JSON.stringify(sample, null, 2)}
+Sample: ${JSON.stringify(sample.slice(0, 2))}
+Fields: ${fields.slice(0, 5).join(', ')}
+Numeric: ${numericFields.slice(0, 3).join(', ') || 'None'}
+Query: "${originalQuery}"
 
-Data Structure:
-- Total Records: ${data.length}
-- Numeric Fields (Measures): ${numericFields.join(', ') || 'None'}
-- Categorical Fields (Dimensions): ${categoricalFields.join(', ') || 'None'}
-- All Fields: ${fields.join(', ')}
+Rules:
+- Pie: proportions, 2-10 categories
+- Bar: comparisons, rankings
+- Line: trends over time
 
-Original Query: "${originalQuery}"
-
-Chart Type Guidelines:
-1. **Pie Chart**: Best for showing proportions/percentages of a whole. Use when:
-   - Data has 1 categorical dimension and 1 numeric measure
-   - Showing distribution or composition (e.g., sales by region, items by category)
-   - Limited number of categories (ideally 2-10)
-   - NOT suitable for time series or comparing many categories
-
-2. **Bar Chart**: Best for comparing categories. Use when:
-   - Comparing values across categories
-   - Data has 1 categorical dimension and 1 numeric measure
-   - Good for ranking, comparisons, or showing discrete values
-   - Works well with many categories
-
-3. **Line Chart**: Best for trends over time. Use when:
-   - Data has a time/date dimension
-   - Showing trends, changes over time, or continuous data
-   - Multiple series comparison over time
-   - NOT suitable for categorical comparisons without time
-
-Return ONLY a JSON array with 1-3 recommended chart types in order of preference (most suitable first).
-Example responses:
-- ["bar", "pie"] - if bar is best, pie is second choice
-- ["line", "bar"] - if line is best for time series
-- ["pie"] - if only pie chart makes sense
-- ["bar"] - if only bar chart is suitable
-
-Response (JSON array only, no other text):`
+Return JSON array only, e.g. ["bar", "pie"]:`
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -631,8 +702,8 @@ Response (JSON array only, no other text):`
             content: prompt,
           },
         ],
-        temperature: 0.3,
-        max_tokens: 100,
+        temperature: 0.2,
+        max_tokens: 50,
       }),
     })
 
@@ -697,70 +768,19 @@ async function generateQueryFromNaturalLanguage(
     const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0]
     const todayStr = new Date().toISOString().split('T')[0]
 
-    const prompt = `You are an expert in SAP Business One Service Layer. 
-Based on the user's natural language query, select the MOST APPROPRIATE object from the list below and determine any filter parameters needed.
+    // Ultra-optimized prompt for fastest response
+    const commonObjects = ['Orders', 'Invoices', 'Items', 'BusinessPartners']
+    const prompt = `Query: "${processedQuery}"
 
-Natural Language Query: "${processedQuery}"
-Today's date: ${todayStr}
-One year ago: ${oneYearAgoStr}
-
-Available SAP B1 Objects:
-${SAP_B1_OBJECTS.join(', ')}
-
-IMPORTANT - Valid Property Names for Common Objects:
-- Items object: Use ONLY these properties: ItemCode, ItemName, QuantityOnStock, OnHand, MinInventory, MaxInventory, InventoryUOM, ValidFor, FrozenFor, CardCode, etc.
-  DO NOT use: MinLevel, MinimumLevel, StockLevel, or any other variations
-- Orders object: DocumentStatus, DocDate, CardCode, DocTotal, etc.
-- Invoices object: DocDate, DocTotal, CardCode, DocumentStatus, etc.
-- BusinessPartners object: CardCode, CardName, CardType, etc.
+Objects: ${commonObjects.join(', ')}
 
 Rules:
-1. Select ONE object name from the list above that best matches the query
-2. ONLY add filter parameters if the user EXPLICITLY asks for filtered/specific data:
-   - "pending orders", "open orders", "closed orders" → Use filter
-   - "list all", "show all", "get all" → NO filter (empty string)
-   - "one year sales", "this month" → Use date filter
-   - Generic queries without specific criteria → NO filter
-3. ONLY add $top parameter if the user EXPLICITLY requests a limit:
-   - "top 10", "first 100", "limit 50" → Add $top parameter
-   - "list all", "show all", "get all" → NO $top (fetch all records)
-   - Generic queries → NO $top (fetch all records)
-4. For "list all" or "show all" queries: Return empty filterParams (no filter, no $top)
-5. For "pending orders" or "open orders": Use "Orders" object with $filter=DocumentStatus eq 'bost_Open'
-6. For date filters: Use format 'YYYY-MM-DD' with single quotes
-7. Status values: 'bost_Open' (open/pending), 'bost_Close' (closed), 'bost_Cancelled' (cancelled)
-8. For "one year" queries: $filter=DocDate ge '${oneYearAgoStr}' and DocDate le '${todayStr}'
-9. For inventory/stock queries on Items: 
-   - If query asks for "items below minimum stock" or similar: Use Items object with NO filter (fetch all items, filtering will be done client-side)
-   - DO NOT use MinLevel, MinimumLevel, or any invalid property names
-   - Valid properties: MinInventory (minimum inventory), QuantityOnStock or OnHand (current stock)
+- "pending/open" → Orders, $filter=DocumentStatus eq 'bost_Open'
+- "sales" → Invoices, $filter=DocDate ge '${oneYearAgoStr}'
+- "all" → NO filter
+- Only $top if "top X"
 
-Return ONLY a JSON object in this exact format:
-{
-  "objectName": "Orders",
-  "filterParams": "$filter=DocumentStatus eq 'bost_Open'"
-}
-
-If no filters needed, return empty string for filterParams:
-{
-  "objectName": "Items",
-  "filterParams": ""
-}
-
-Examples:
-- Query: "List all pending orders" → {"objectName": "Orders", "filterParams": "$filter=DocumentStatus eq 'bost_Open'"} (has "pending" - specific filter, NO $top)
-- Query: "List all orders" → {"objectName": "Orders", "filterParams": ""} (NO filter, NO $top - "list all" means fetch everything)
-- Query: "Show me items" → {"objectName": "Items", "filterParams": ""} (NO filter, NO $top - generic query)
-- Query: "Give me one year sales" → {"objectName": "Invoices", "filterParams": "$filter=DocDate ge '${oneYearAgoStr}'"} (has date criteria - filter needed, NO $top)
-- Query: "List all customers" → {"objectName": "BusinessPartners", "filterParams": ""} (NO filter, NO $top - "list all" means all)
-- Query: "Show top 10 customers" → {"objectName": "BusinessPartners", "filterParams": "$top=10"} (user requested limit)
-- Query: "First 100 orders" → {"objectName": "Orders", "filterParams": "$top=100"} (user requested limit)
-- Query: "Show inventory items below minimum stock" → {"objectName": "Items", "filterParams": ""} (NO filter, NO $top - client-side filtering)
-- Query: "Items with low stock" → {"objectName": "Items", "filterParams": ""} (NO filter, NO $top)
-- Query: "Pending orders" → {"objectName": "Orders", "filterParams": "$filter=DocumentStatus eq 'bost_Open'"} (has "pending" - specific filter, NO $top)
-- Query: "Orders" → {"objectName": "Orders", "filterParams": ""} (NO filter, NO $top - just object name)
-
-Response (JSON only):`
+JSON: {"objectName": "Orders", "filterParams": ""}`
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -780,8 +800,8 @@ Response (JSON only):`
             content: prompt,
           },
         ],
-        temperature: 0.3,
-        max_tokens: 200,
+        temperature: 0.1,
+        max_tokens: 100,
       }),
     })
 
@@ -1041,19 +1061,26 @@ async function executeSAPB1Query(
       console.log(`Returning ${allResults.length} total records to client`)
       return finalResult
     } else {
-      // Original single request logic (for backward compatibility)
-      // Build query parameters
-      let hasTop = false
-      if (filterParams) {
-        hasTop = filterParams.includes('$top=')
-      }
-      
+      // Single request logic - respect $top limit, no pagination
+      // Build query parameters - use the filterParams as-is (should already have $top=15)
       let queryParams = filterParams || ''
-      if (!hasTop) {
+      
+      // If no $top is specified, add a small default limit for fast loading
+      if (!queryParams.includes('$top=')) {
         if (queryParams) {
-          queryParams += '&$top=10000'
+          queryParams += '&$top=15'
         } else {
-          queryParams = '$top=10000'
+          queryParams = '$top=15'
+        }
+      } else {
+        // Extract the $top value and ensure it's not too large
+        const topMatch = queryParams.match(/\$top=(\d+)/)
+        if (topMatch) {
+          const topValue = parseInt(topMatch[1], 10)
+          // If $top is too large, limit it to 15 for faster loading
+          if (topValue > 15) {
+            queryParams = queryParams.replace(/\$top=\d+/, '$top=15')
+          }
         }
       }
       
@@ -1078,9 +1105,11 @@ async function makeSAPB1Request(sessionId: string, url: string, serverUrl: strin
   const urlObj = new URL(url)
   const isHttps = urlObj.protocol === 'https:'
   
-  // Create a custom agent that accepts self-signed certificates
+  // Create a custom agent that accepts self-signed certificates with timeout
   const agent = isHttps ? new https.Agent({
     rejectUnauthorized: false, // Accept self-signed certificates
+    timeout: 10000, // 10 second timeout
+    keepAlive: false,
   }) : undefined
   
   // Use GET method to retrieve data from SAP B1
@@ -1123,6 +1152,12 @@ async function makeSAPB1Request(sessionId: string, url: string, serverUrl: strin
           }
           resolve(response)
         })
+      })
+      
+      // Set request timeout (10 seconds)
+      req.setTimeout(10000, () => {
+        req.destroy()
+        reject(new Error('Request timeout: SAP B1 query took too long'))
       })
       
       req.on('error', (error: any) => {
@@ -1232,29 +1267,29 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Step 3: Execute the query using the selected object (limit to top 50 records)
+    // Step 3: Execute the query using the selected object (limit to top 15 records for faster loading)
     let result: any
-    try {
-      // Add $top=50 to limit results to top 50 records
-      let limitedFilterParams = queryResult.filterParams || ''
-      if (limitedFilterParams) {
-        // Check if $top is already in filterParams
-        if (!limitedFilterParams.includes('$top=')) {
-          limitedFilterParams += `&$top=50`
-        } else {
-          // Replace existing $top with 50 if it's higher
-          limitedFilterParams = limitedFilterParams.replace(/\$top=\d+/, '$top=50')
-        }
+    // Add $top=15 to limit results to top 15 records for faster loading (define outside try for retry access)
+    let limitedFilterParams = queryResult.filterParams || ''
+    if (limitedFilterParams) {
+      // Check if $top is already in filterParams
+      if (!limitedFilterParams.includes('$top=')) {
+        limitedFilterParams += `&$top=15`
       } else {
-        limitedFilterParams = '$top=50'
+        // Replace existing $top with 15 if it's higher
+        limitedFilterParams = limitedFilterParams.replace(/\$top=\d+/, '$top=15')
       }
-      
+    } else {
+      limitedFilterParams = '$top=15'
+    }
+    
+    try {
       result = await executeSAPB1Query(
         sessionId,
         settings.sapServer,
         queryResult.objectName,
         limitedFilterParams,
-        false, // Don't fetch all, we only want top 50
+        false, // Don't fetch all, we only want top 15 records
         signal // Pass abort signal
       )
       console.log('Query executed successfully, result type:', Array.isArray(result) ? 'array' : typeof result)
@@ -1284,8 +1319,8 @@ export async function POST(request: NextRequest) {
               newSessionId,
               settings.sapServer,
               queryResult.objectName,
-              queryResult.filterParams,
-              true,
+              limitedFilterParams, // Use limited params with $top=15
+              false, // Don't fetch all, respect the limit
               signal
             )
             console.log('Retry with new session successful')
@@ -1312,7 +1347,9 @@ export async function POST(request: NextRequest) {
             sessionId,
             settings.sapServer,
             queryResult.objectName,
-            '$top=50' // Retry with top 50 limit
+            '$top=15', // Retry with top 15 limit for fast loading
+            false, // Don't fetch all, respect the limit
+            signal
           )
           console.log('Retry successful, filtering results client-side')
         } catch (retryError: any) {
@@ -1365,22 +1402,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`Final response: ${chartData.length} records will be sent to client`)
 
-    // Step 6: Analyze data and recommend chart types using OpenAI
-    let recommendedChartTypes: ('pie' | 'bar' | 'line')[] = ['bar'] // Default fallback
-    try {
-      recommendedChartTypes = await recommendChartTypes(
-        chartData,
-        query,
-        {
-          openaiApiKey: settings.openaiApiKey,
-          openaiModel: settings.openaiModel,
-        }
-      )
-      console.log(`Recommended chart types: ${recommendedChartTypes.join(', ')}`)
-    } catch (error) {
-      console.error('Error recommending chart types:', error)
-      // Continue with default
-    }
+    // Step 6: Fast data analysis to recommend chart types (no API call, instant)
+    const recommendedChartTypes = analyzeDataForChartTypes(chartData, query)
 
     return NextResponse.json({
       success: true,
@@ -1388,7 +1411,7 @@ export async function POST(request: NextRequest) {
       objectName: queryResult.objectName,
       data: chartData,
       rawResult: result,
-      recommendedChartTypes, // Add recommended chart types
+      recommendedChartTypes, // Smart chart type recommendations
     }, {
       headers: corsHeaders,
     })

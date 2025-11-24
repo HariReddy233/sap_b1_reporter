@@ -207,16 +207,16 @@ function ChartDisplay({ data, chartType }: ChartDisplayProps) {
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-200">
-      <div className="mb-5">
-        <h3 className="text-xl font-bold text-gray-800 mb-1">
+    <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-200">
+      <div className="mb-3">
+        <h3 className="text-lg font-bold text-gray-800 mb-0.5">
           Data Visualization
         </h3>
         <p className="text-xs text-gray-500">
           Showing all {chartData.length.toLocaleString()} records
         </p>
       </div>
-      <div className="h-[400px] mb-6">
+      <div className="h-[300px] mb-4">
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'pie' ? (
             <PieChart>
@@ -342,8 +342,8 @@ function ChartDisplay({ data, chartType }: ChartDisplayProps) {
       </div>
 
       {/* Field Selector */}
-      <div className="mt-6 mb-5 p-4 bg-gray-50 rounded-xl border border-gray-200">
-        <div className="flex items-center justify-between mb-3">
+      <div className="mt-4 mb-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
+        <div className="flex items-center justify-between mb-2">
           <h4 className="text-base font-bold text-gray-800">Select Fields to Display</h4>
           <div className="flex gap-2">
             <button

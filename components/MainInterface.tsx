@@ -251,25 +251,24 @@ export default function MainInterface({ settings, isConfigured, loginSuccess }: 
         </div>
       ) : null}
 
-      {/* Loading Indicator - Modern Design */}
+      {/* Loading Indicator - Compact Design */}
       {loading && (
-        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 rounded-2xl shadow-xl p-6 border-2 border-blue-200 backdrop-blur-sm">
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 rounded-xl shadow-lg p-3.5 border border-blue-200 backdrop-blur-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4 flex-1">
+            <div className="flex items-center space-x-3 flex-1">
               <div className="relative">
-                <div className="animate-spin rounded-full h-8 w-8 border-3 border-blue-200 border-t-blue-600"></div>
-                <div className="absolute inset-0 rounded-full border-3 border-transparent border-t-blue-400 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1s' }}></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-200 border-t-blue-600"></div>
               </div>
               <div className="flex-1">
-                <p className="text-base font-bold text-gray-800 mb-1">Processing Your Query</p>
-                <p className="text-sm text-gray-600 font-medium">{loadingProgress || 'Please wait...'}</p>
+                <p className="text-sm font-bold text-gray-800">Processing Your Query</p>
+                <p className="text-xs text-gray-600">{loadingProgress || 'Please wait...'}</p>
               </div>
             </div>
             <button
               onClick={handleCancelQuery}
-              className="flex items-center space-x-2 px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl hover:from-red-600 hover:to-rose-700 transition-all duration-200 text-sm font-semibold shadow-md hover:shadow-lg"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-lg hover:from-red-600 hover:to-rose-700 transition-all duration-200 text-xs font-semibold shadow-md hover:shadow-lg"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
               <span>Cancel</span>
             </button>
           </div>
@@ -277,62 +276,62 @@ export default function MainInterface({ settings, isConfigured, loginSuccess }: 
       )}
 
       {/* Show Query Input or Chart Type Selector */}
-      {queryResult ? (
-        // Show Chart Type Selector on same page - only show recommended chart types
+      {queryResult && !loading ? (
+        // Show Chart Type Selector on same page - only show recommended chart types (hide while loading)
         <div className="space-y-6">
           <QueryInput onSubmit={handleQuerySubmit} loading={loading} isConfigured={isConfigured} currentQuery={originalQuery} />
           
-          {/* Chart Type Selector - Only show recommended chart types */}
-          <div className="bg-white rounded-3xl shadow-2xl p-6 md:p-8 border border-gray-200">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-gray-800">Select Visualization Type</h3>
+          {/* Chart Type Selector - Compact Design - Only show after data is loaded */}
+          <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-gray-800">Select Visualization Type</h3>
               {queryResult.recommendedChartTypes && queryResult.recommendedChartTypes.length < 3 && (
-                <span className="text-sm text-blue-600 bg-blue-50 px-4 py-2 rounded-xl font-semibold border border-blue-200">
-                  ✨ AI Recommended
+                <span className="text-xs text-blue-600 bg-blue-50 px-3 py-1 rounded-lg font-semibold border border-blue-200">
+                  ✨ Recommended
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-3">
               {(queryResult.recommendedChartTypes || ['bar', 'pie', 'line']).includes('bar') && (
                 <button
                   onClick={() => handleChartTypeSelect('bar')}
                   disabled={navigating}
-                  className={`flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 font-semibold ${
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm ${
                     navigating
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
-                      : 'bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 cursor-pointer'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                      : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:from-blue-600 hover:to-indigo-700 shadow-md hover:shadow-lg hover:scale-105 cursor-pointer'
                   }`}
                 >
-                  <BarChart3 className="w-6 h-6" />
-                  <span>{navigating ? 'Loading...' : 'Bar Chart'}</span>
+                  <BarChart3 className="w-4 h-4" />
+                  <span>{navigating ? 'Loading...' : 'Bar'}</span>
                 </button>
               )}
               {(queryResult.recommendedChartTypes || ['bar', 'pie', 'line']).includes('pie') && (
                 <button
                   onClick={() => handleChartTypeSelect('pie')}
                   disabled={navigating}
-                  className={`flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 font-semibold ${
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm ${
                     navigating
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
-                      : 'bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 cursor-pointer'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                      : 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:from-purple-600 hover:to-pink-700 shadow-md hover:shadow-lg hover:scale-105 cursor-pointer'
                   }`}
                 >
-                  <PieChart className="w-6 h-6" />
-                  <span>{navigating ? 'Loading...' : 'Pie Chart'}</span>
+                  <PieChart className="w-4 h-4" />
+                  <span>{navigating ? 'Loading...' : 'Pie'}</span>
                 </button>
               )}
               {(queryResult.recommendedChartTypes || ['bar', 'pie', 'line']).includes('line') && (
                 <button
                   onClick={() => handleChartTypeSelect('line')}
                   disabled={navigating}
-                  className={`flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 font-semibold ${
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm ${
                     navigating
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
-                      : 'bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 cursor-pointer'
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                      : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg hover:scale-105 cursor-pointer'
                   }`}
                 >
-                  <TrendingUp className="w-6 h-6" />
-                  <span>{navigating ? 'Loading...' : 'Line Chart'}</span>
+                  <TrendingUp className="w-4 h-4" />
+                  <span>{navigating ? 'Loading...' : 'Line'}</span>
                 </button>
               )}
             </div>

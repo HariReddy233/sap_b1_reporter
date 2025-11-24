@@ -91,7 +91,7 @@ export default function QueryInput({ onSubmit, loading, isConfigured, currentQue
         <div className="flex items-center justify-center space-x-3 mb-3">
           <AnimatedAILogo />
           <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            Natural Language Query
+            MIRA
           </h2>
         </div>
         <p className="text-sm text-gray-500">Ask questions in plain English and get instant insights</p>

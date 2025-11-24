@@ -24,3 +24,4 @@ export const defaultOpenAIConfig: OpenAIConfig = {
   apiKey: "", // Users should provide their own API key through the settings panel
   model: "gpt-3.5-turbo",
 };
+
