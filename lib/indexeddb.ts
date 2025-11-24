@@ -155,3 +155,77 @@ export async function cleanupOldResults(): Promise<void> {
   }
 }
 
+// Clean up sessionStorage entries to free up space
+export function cleanupSessionStorage(): void {
+  try {
+    // Get all keys that start with 'queryResult_'
+    const keysToRemove: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key && (key.startsWith('queryResult_') || key === 'queryResultId')) {
+        keysToRemove.push(key)
+      }
+    }
+    
+    // Remove old entries (keep only the most recent one if it exists)
+    if (keysToRemove.length > 0) {
+      // Sort by timestamp if possible, or just remove all except the current one
+      const currentId = sessionStorage.getItem('queryResultId')
+      keysToRemove.forEach(key => {
+        // Keep the current result, remove others
+        if (key !== 'queryResultId' && key !== `queryResult_${currentId}`) {
+          try {
+            sessionStorage.removeItem(key)
+            console.log(`Cleaned up sessionStorage entry: ${key}`)
+          } catch (e) {
+            console.warn(`Failed to remove sessionStorage key ${key}:`, e)
+          }
+        }
+      })
+    }
+  } catch (error) {
+    console.error('Error cleaning up sessionStorage:', error)
+  }
+}
+
+// Safely set item in sessionStorage with quota error handling
+export function safeSetSessionStorage(key: string, value: string): boolean {
+  try {
+    // Try to set the item
+    sessionStorage.setItem(key, value)
+    return true
+  } catch (error: any) {
+    if (error.name === 'QuotaExceededError' || error.code === 22) {
+      console.warn(`SessionStorage quota exceeded for key ${key}, attempting cleanup...`)
+      // Try to clean up old entries
+      cleanupSessionStorage()
+      try {
+        // Try again after cleanup
+        sessionStorage.setItem(key, value)
+        return true
+      } catch (retryError: any) {
+        console.error(`Failed to set sessionStorage after cleanup:`, retryError)
+        // If still failing, clear all query result entries and try once more
+        try {
+          const allKeys: string[] = []
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i)
+            if (k && (k.startsWith('queryResult_') || k === 'queryResultId')) {
+              allKeys.push(k)
+            }
+          }
+          allKeys.forEach(k => sessionStorage.removeItem(k))
+          sessionStorage.setItem(key, value)
+          return true
+        } catch (finalError) {
+          console.error(`Failed to set sessionStorage even after full cleanup:`, finalError)
+          return false
+        }
+      }
+    } else {
+      console.error(`Error setting sessionStorage for key ${key}:`, error)
+      return false
+    }
+  }
+}
+

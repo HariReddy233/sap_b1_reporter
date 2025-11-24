@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, memo } from 'react'
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { ChevronLeft, ChevronRight, CheckSquare, Square } from 'lucide-react'
 
@@ -11,11 +11,98 @@ interface ChartDisplayProps {
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#f97316', '#6366f1', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#ef4444', '#8b5cf6', '#3b82f6']
 
-export default function ChartDisplay({ data, chartType }: ChartDisplayProps) {
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 50 // Show 50 records per page (matches top 50 data fetch)
+// Memoized helper function to find value field
+const findValueField = (item: any, numericFields: [string, any][]): string => {
+  const priorityValueFields = ['DocTotal', 'Total', 'Amount', 'Quantity', 'QuantityOnStock', 'OnHand', 'Price', 'Revenue', 'Sales', 'Value']
+  const found = priorityValueFields.find(field => 
+    numericFields.some(([key]) => key === field)
+  )
+  if (found) return found
+  return numericFields.find(([key]) => !['DocEntry', 'DocNum', 'LineNum', 'Series'].includes(key))?.[0]
+    || numericFields[0]?.[0] || 'value'
+}
+
+// Memoized helper function to find name field
+const findNameField = (item: any, valueField: string): string => {
+  const priorityNameFields = ['CardName', 'ItemName', 'Name', 'CustomerName', 'SupplierName', 'DocDate', 'Date', 'Description']
+  const found = priorityNameFields.find(field => 
+    Object.keys(item).some(key => key === field)
+  )
+  if (found) return found
   
-  // Get all available fields from data
+  return Object.keys(item).find(k => 
+    k.toLowerCase().includes('name') || 
+    k.toLowerCase().includes('item') ||
+    k.toLowerCase().includes('card') ||
+    k.toLowerCase().includes('customer') ||
+    k.toLowerCase().includes('description')
+  ) || Object.keys(item).find(k => 
+    !['DocEntry', 'DocNum', 'LineNum', 'Series', valueField].includes(k)
+  ) || Object.keys(item)[0] || 'name'
+}
+
+// Memoized data transformation
+const transformChartData = (data: any[]): any[] => {
+  if (!Array.isArray(data) || data.length === 0) return []
+  
+  return data.map((item, index) => {
+    if (typeof item === 'object' && item !== null) {
+      // Find numeric fields for aggregation (prioritize meaningful fields)
+      const numericFields = Object.entries(item).filter(([_, val]) => 
+        typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)))
+      )
+      
+      if (numericFields.length === 0) {
+        return { name: `Item ${index + 1}`, value: 0, valueFieldName: 'Value', ...item }
+      }
+      
+      const valueField = findValueField(item, numericFields)
+      const nameField = findNameField(item, valueField)
+      
+      // Format the name field value
+      let nameValue = String(item[nameField] || nameField)
+      
+      // If the value is empty or null, try to use the field name itself or find another meaningful field
+      if (!nameValue || nameValue === 'undefined' || nameValue === 'null') {
+        const alternativeField = Object.keys(item).find(k => {
+          const val = item[k]
+          return val !== null && val !== undefined && val !== '' && 
+                 !['DocEntry', 'DocNum', 'LineNum', 'Series', valueField].includes(k) &&
+                 typeof val !== 'number'
+        })
+        if (alternativeField) {
+          nameValue = String(item[alternativeField])
+        }
+      }
+      
+      // If it's a date, format it nicely
+      if (nameField.toLowerCase().includes('date') && item[nameField]) {
+        try {
+          const date = new Date(item[nameField])
+          if (!isNaN(date.getTime())) {
+            nameValue = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+          }
+        } catch (e) {
+          // Keep original if date parsing fails
+        }
+      }
+      
+      return {
+        name: nameValue,
+        value: parseFloat(String(item[valueField] || 0)),
+        valueFieldName: valueField,
+        ...item,
+      }
+    }
+    return { name: `Item ${index + 1}`, value: parseFloat(String(item)) || 0, valueFieldName: 'Value' }
+  })
+}
+
+function ChartDisplay({ data, chartType }: ChartDisplayProps) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 50
+  
+  // Get all available fields from data - memoized
   const allFields = useMemo(() => {
     if (!data || data.length === 0) return []
     if (typeof data[0] === 'object' && data[0] !== null) {
@@ -25,7 +112,7 @@ export default function ChartDisplay({ data, chartType }: ChartDisplayProps) {
   }, [data])
   
   // Create a stable key for the fields to detect when they actually change
-  const fieldsKey = allFields.sort().join(',')
+  const fieldsKey = useMemo(() => allFields.sort().join(','), [allFields])
   
   // State for selected fields - default to empty (user must select)
   const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set())
@@ -34,14 +121,61 @@ export default function ChartDisplay({ data, chartType }: ChartDisplayProps) {
   // Reset selected fields only when the actual field structure changes
   useEffect(() => {
     if (fieldsKey !== lastFieldsKey && fieldsKey.length > 0) {
-      // Fields have changed - reset to empty selection
       setSelectedFields(new Set())
       setLastFieldsKey(fieldsKey)
     } else if (lastFieldsKey === '' && fieldsKey.length > 0) {
-      // First time loading - start with empty
       setLastFieldsKey(fieldsKey)
     }
   }, [fieldsKey, lastFieldsKey])
+
+  // Memoize chart data transformation - this is the expensive operation
+  const chartData = useMemo(() => {
+    if (!data || data.length === 0) return []
+    
+    if (Array.isArray(data)) {
+      return transformChartData(data)
+    } else if (typeof data === 'object') {
+      return Object.entries(data).map(([key, value]) => ({
+        name: key,
+        value: typeof value === 'number' ? value : parseFloat(String(value)) || 0,
+        valueFieldName: 'Value',
+      }))
+    }
+    return []
+  }, [data])
+
+  // Memoize value key
+  const valueKey = useMemo(() => {
+    if (chartData.length > 0 && typeof chartData[0].value === 'number') {
+      return 'value'
+    }
+    if (chartData.length > 0) {
+      const found = Object.keys(chartData[0] || {}).find(k => 
+        typeof chartData[0][k] === 'number'
+      )
+      return found || 'value'
+    }
+    return 'value'
+  }, [chartData])
+
+  // Memoize pagination calculations
+  const { totalPages, startIndex, endIndex, paginatedData } = useMemo(() => {
+    const total = Math.ceil(data.length / itemsPerPage)
+    const start = (currentPage - 1) * itemsPerPage
+    const end = start + itemsPerPage
+    return {
+      totalPages: total,
+      startIndex: start,
+      endIndex: end,
+      paginatedData: data.slice(start, end)
+    }
+  }, [data, currentPage, itemsPerPage])
+  
+  // Memoize table headers
+  const tableHeaders = useMemo(() => 
+    Array.from(selectedFields).filter(field => allFields.includes(field)),
+    [selectedFields, allFields]
+  )
 
   if (!data || data.length === 0) {
     return (
@@ -50,106 +184,6 @@ export default function ChartDisplay({ data, chartType }: ChartDisplayProps) {
       </div>
     )
   }
-
-  // Log data length for debugging
-  console.log('ChartDisplay: Received data length:', data.length)
-
-  // Calculate pagination - use original data for table
-  const totalPages = Math.ceil(data.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const paginatedData = data.slice(startIndex, endIndex)
-  
-  // Get table headers from selected fields
-  const tableHeaders = Array.from(selectedFields).filter(field => allFields.includes(field))
-
-  // Transform data for charts - Show ALL data (no limit)
-  let chartData: any[] = []
-  
-  if (Array.isArray(data)) {
-    // Transform all data - show ALL data points with intelligent field selection
-    chartData = data.map((item, index) => {
-      if (typeof item === 'object' && item !== null) {
-        // Find numeric fields for aggregation (prioritize meaningful fields)
-        const numericFields = Object.entries(item).filter(([_, val]) => 
-          typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)))
-        )
-        
-        // Prioritize meaningful numeric fields (amounts, totals, quantities)
-        const priorityValueFields = ['DocTotal', 'Total', 'Amount', 'Quantity', 'QuantityOnStock', 'OnHand', 'Price', 'Revenue', 'Sales', 'Value']
-        const valueField = priorityValueFields.find(field => 
-          numericFields.some(([key]) => key === field)
-        ) ? priorityValueFields.find(field => numericFields.some(([key]) => key === field))!
-          : numericFields.find(([key]) => !['DocEntry', 'DocNum', 'LineNum', 'Series'].includes(key))?.[0]
-          || numericFields[0]?.[0] || 'value'
-        
-        // Prioritize meaningful name fields (customer names, item names, dates)
-        // But preserve exact field names from the data
-        const priorityNameFields = ['CardName', 'ItemName', 'Name', 'CustomerName', 'SupplierName', 'DocDate', 'Date', 'Description']
-        const nameField = priorityNameFields.find(field => 
-          Object.keys(item).some(key => key === field)
-        ) ? priorityNameFields.find(field => Object.keys(item).some(key => key === field))!
-          : Object.keys(item).find(k => 
-            k.toLowerCase().includes('name') || 
-            k.toLowerCase().includes('item') ||
-            k.toLowerCase().includes('card') ||
-            k.toLowerCase().includes('customer') ||
-            k.toLowerCase().includes('description')
-          ) || Object.keys(item).find(k => 
-            !['DocEntry', 'DocNum', 'LineNum', 'Series', valueField].includes(k)
-          ) || Object.keys(item)[0] || `Item ${index + 1}`
-        
-        // Format the name field value - preserve exact value from data
-        let nameValue = String(item[nameField] || nameField)
-        
-        // If the value is empty or null, try to use the field name itself or find another meaningful field
-        if (!nameValue || nameValue === 'undefined' || nameValue === 'null') {
-          // Try to find a non-numeric, non-empty field
-          const alternativeField = Object.keys(item).find(k => {
-            const val = item[k]
-            return val !== null && val !== undefined && val !== '' && 
-                   !['DocEntry', 'DocNum', 'LineNum', 'Series', valueField].includes(k) &&
-                   typeof val !== 'number'
-          })
-          if (alternativeField) {
-            nameValue = String(item[alternativeField])
-          }
-        }
-        // If it's a date, format it nicely
-        if (nameField.toLowerCase().includes('date') && item[nameField]) {
-          try {
-            const date = new Date(item[nameField])
-            if (!isNaN(date.getTime())) {
-              nameValue = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            }
-          } catch (e) {
-            // Keep original if date parsing fails
-          }
-        }
-        
-        return {
-          name: nameValue,
-          value: parseFloat(String(item[valueField] || 0)),
-          valueFieldName: valueField, // Store the actual field name for display
-          ...item,
-        }
-      }
-      return { name: `Item ${index + 1}`, value: parseFloat(String(item)) || 0, valueFieldName: 'Value' }
-    })
-  } else if (typeof data === 'object') {
-    chartData = Object.entries(data).map(([key, value]) => ({
-      name: key,
-      value: typeof value === 'number' ? value : parseFloat(String(value)) || 0,
-      valueFieldName: 'Value',
-    }))
-  }
-
-  // Find the best value key
-  const valueKey = chartData.length > 0 && typeof chartData[0].value === 'number' 
-    ? 'value' 
-    : (chartData.length > 0 ? Object.keys(chartData[0] || {}).find(k => 
-        typeof chartData[0][k] === 'number'
-      ) : null) || 'value'
 
   // Toggle field selection
   const toggleField = (field: string) => {
@@ -171,9 +205,6 @@ export default function ChartDisplay({ data, chartType }: ChartDisplayProps) {
   const deselectAllFields = () => {
     setSelectedFields(new Set())
   }
-
-  // Log chart data length
-  console.log('ChartDisplay: Chart data length:', chartData.length)
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-200">
@@ -472,4 +503,7 @@ export default function ChartDisplay({ data, chartType }: ChartDisplayProps) {
     </div>
   )
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export default memo(ChartDisplay)
 

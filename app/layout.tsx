@@ -5,7 +5,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Consultare | AI Powered Analytics',
+  title: 'MIRA',
   description: 'AI-powered analytics platform for SAP Business One - Ask questions in natural language and get instant insights',
   icons: {
     icon: '/consultare-logo.svg',

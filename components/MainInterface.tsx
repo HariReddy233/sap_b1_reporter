@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import QueryInput from './QueryInput'
 import { AlertCircle, CheckCircle, BarChart3, PieChart, TrendingUp, X } from 'lucide-react'
-import { saveQueryResult } from '@/lib/indexeddb'
+import { saveQueryResult, safeSetSessionStorage, cleanupSessionStorage } from '@/lib/indexeddb'
 
 interface Settings {
   sapServer: string
@@ -27,6 +27,7 @@ export default function MainInterface({ settings, isConfigured, loginSuccess }: 
   const [originalQuery, setOriginalQuery] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [loadingProgress, setLoadingProgress] = useState<string>('')
+  const [navigating, setNavigating] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const handleQuerySubmit = async (query: string, variables: Record<string, any>) => {
@@ -108,43 +109,120 @@ export default function MainInterface({ settings, isConfigured, loginSuccess }: 
   }
 
   const handleChartTypeSelect = async (chartType: 'pie' | 'bar' | 'line') => {
+    // Prevent double-clicks
+    if (navigating) {
+      console.log('Navigation already in progress, ignoring click')
+      return
+    }
+
     // Store data in IndexedDB (supports large datasets) and navigate to results page
-    if (queryResult) {
-      try {
-        const recordCount = queryResult.data?.length || 0
-        console.log(`Storing query result: ${recordCount} records`)
-        
-        // Store in IndexedDB (can handle large datasets - 20k+ records)
-        const resultId = await saveQueryResult(queryResult, originalQuery, chartType)
-        
-        // Store the ID in sessionStorage for quick access
-        sessionStorage.setItem('queryResultId', resultId)
-        
-        console.log('Successfully stored query result in IndexedDB')
-        
-        // Navigate to results page
-        router.push('/results')
-      } catch (error: any) {
-        console.error('Error storing results:', error)
-        console.error('Error details:', {
-          name: error.name,
-          message: error.message,
-          code: error.code,
-          dataSize: queryResult.data?.length || 0
-        })
-        
-        // Provide more specific error message
-        let errorMessage = 'Failed to navigate to results page. '
-        if (error.name === 'QuotaExceededError' || error.code === 22) {
-          errorMessage += 'Browser storage quota exceeded. Please try closing other tabs or clearing browser data.'
-        } else if (error.name === 'SecurityError' || error.code === 18) {
-          errorMessage += 'Storage access denied. Please check your browser settings or try in a different browser.'
-        } else {
-          errorMessage += `Error: ${error.message || 'Unknown error'}. Please try again.`
-        }
-        
-        alert(errorMessage)
+    if (!queryResult) {
+      console.error('No query result available')
+      alert('No query result available. Please run a query first.')
+      return
+    }
+
+    setNavigating(true)
+    
+    try {
+      const recordCount = queryResult.data?.length || 0
+      console.log(`[Chart Select] Storing query result: ${recordCount} records, chart type: ${chartType}`)
+      
+      // Store data in sessionStorage first for immediate access (faster than IndexedDB)
+      // This allows navigation to happen immediately while IndexedDB saves in background
+      const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      const dataToStore = {
+        queryResult,
+        originalQuery,
+        selectedChartType: chartType,
+        timestamp: Date.now()
       }
+      
+      // Try to store in sessionStorage (optional - for fast access)
+      // If it fails due to quota, we'll just use IndexedDB
+      const sessionStorageSuccess = safeSetSessionStorage('queryResultId', tempId)
+      if (sessionStorageSuccess) {
+        // Only try to store the full data if we have space
+        // For large datasets, skip sessionStorage and rely on IndexedDB
+        const dataSize = JSON.stringify(dataToStore).length
+        if (dataSize < 2 * 1024 * 1024) { // Only cache if less than 2MB
+          const dataStored = safeSetSessionStorage(`queryResult_${tempId}`, JSON.stringify(dataToStore))
+          if (dataStored) {
+            console.log('[Chart Select] Data stored in sessionStorage successfully, ID:', tempId)
+          } else {
+            console.log('[Chart Select] Data too large for sessionStorage, will use IndexedDB only')
+          }
+        } else {
+          console.log('[Chart Select] Data too large for sessionStorage (' + (dataSize / 1024 / 1024).toFixed(2) + 'MB), will use IndexedDB only')
+        }
+      } else {
+        console.log('[Chart Select] SessionStorage unavailable, will use IndexedDB only')
+      }
+      
+      // Navigate immediately (don't wait for IndexedDB)
+      console.log('[Chart Select] Navigating to results page...')
+      try {
+        router.push('/results')
+        // Fallback: if router.push doesn't work, use window.location
+        setTimeout(() => {
+          if (window.location.pathname !== '/results') {
+            console.log('[Chart Select] Router.push may have failed, using window.location fallback')
+            window.location.href = '/results'
+          }
+        }, 100)
+      } catch (navError) {
+        console.error('[Chart Select] Navigation error, using window.location fallback:', navError)
+        window.location.href = '/results'
+      }
+      
+      // Store in IndexedDB in background (for persistence across sessions)
+      saveQueryResult(queryResult, originalQuery, chartType)
+        .then((resultId) => {
+          // Update sessionStorage with the real ID once IndexedDB save completes (if possible)
+          safeSetSessionStorage('queryResultId', resultId)
+          
+          // Only cache full data if it's small enough
+          const dataSize = JSON.stringify(dataToStore).length
+          if (dataSize < 2 * 1024 * 1024) {
+            safeSetSessionStorage(`queryResult_${resultId}`, JSON.stringify(dataToStore))
+          }
+          
+          // Clean up temp entry if it exists
+          if (tempId.startsWith('temp_')) {
+            try {
+              sessionStorage.removeItem(`queryResult_${tempId}`)
+            } catch (e) {
+              // Ignore cleanup errors
+            }
+          }
+          console.log('[Chart Select] Successfully stored query result in IndexedDB:', resultId)
+        })
+        .catch((error) => {
+          console.error('[Chart Select] Background IndexedDB save failed (non-critical):', error)
+          // Don't show error to user - sessionStorage is sufficient for current session
+        })
+    } catch (error: any) {
+      console.error('[Chart Select] Error in handleChartTypeSelect:', error)
+      console.error('[Chart Select] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      })
+      
+      setNavigating(false)
+      
+      // Provide more specific error message
+      let errorMessage = 'Failed to navigate to results page. '
+      if (error.name === 'QuotaExceededError' || error.code === 22) {
+        errorMessage += 'Browser storage quota exceeded. Please try closing other tabs or clearing browser data.'
+      } else if (error.name === 'SecurityError' || error.code === 18) {
+        errorMessage += 'Storage access denied. Please check your browser settings or try in a different browser.'
+      } else {
+        errorMessage += `Error: ${error.message || 'Unknown error'}. Please try again.`
+      }
+      
+      alert(errorMessage)
     }
   }
 
@@ -218,28 +296,43 @@ export default function MainInterface({ settings, isConfigured, loginSuccess }: 
               {(queryResult.recommendedChartTypes || ['bar', 'pie', 'line']).includes('bar') && (
                 <button
                   onClick={() => handleChartTypeSelect('bar')}
-                  className="flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 font-semibold"
+                  disabled={navigating}
+                  className={`flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 font-semibold ${
+                    navigating
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
+                      : 'bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 cursor-pointer'
+                  }`}
                 >
                   <BarChart3 className="w-6 h-6" />
-                  <span>Bar Chart</span>
+                  <span>{navigating ? 'Loading...' : 'Bar Chart'}</span>
                 </button>
               )}
               {(queryResult.recommendedChartTypes || ['bar', 'pie', 'line']).includes('pie') && (
                 <button
                   onClick={() => handleChartTypeSelect('pie')}
-                  className="flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 font-semibold"
+                  disabled={navigating}
+                  className={`flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 font-semibold ${
+                    navigating
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
+                      : 'bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 cursor-pointer'
+                  }`}
                 >
                   <PieChart className="w-6 h-6" />
-                  <span>Pie Chart</span>
+                  <span>{navigating ? 'Loading...' : 'Pie Chart'}</span>
                 </button>
               )}
               {(queryResult.recommendedChartTypes || ['bar', 'pie', 'line']).includes('line') && (
                 <button
                   onClick={() => handleChartTypeSelect('line')}
-                  className="flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 font-semibold"
+                  disabled={navigating}
+                  className={`flex items-center space-x-3 px-8 py-4 rounded-xl transition-all duration-200 font-semibold ${
+                    navigating
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
+                      : 'bg-gradient-to-br from-blue-50 to-indigo-50 text-gray-700 hover:from-blue-100 hover:to-indigo-100 border-2 border-blue-200 hover:border-blue-400 hover:shadow-xl hover:scale-105 cursor-pointer'
+                  }`}
                 >
                   <TrendingUp className="w-6 h-6" />
-                  <span>Line Chart</span>
+                  <span>{navigating ? 'Loading...' : 'Line Chart'}</span>
                 </button>
               )}
             </div>

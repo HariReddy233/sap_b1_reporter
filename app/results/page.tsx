@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ResultsPage from '@/components/ResultsPage'
-import { loadQueryResult, deleteQueryResult, cleanupOldResults } from '@/lib/indexeddb'
+import { loadQueryResult, deleteQueryResult, cleanupOldResults, safeSetSessionStorage } from '@/lib/indexeddb'
 
 export default function ResultsPageRoute() {
   const router = useRouter()
@@ -13,12 +13,9 @@ export default function ResultsPageRoute() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Load query result from IndexedDB
+    // Load query result - check sessionStorage first (instant), then IndexedDB (for persistence)
     const loadData = async () => {
       try {
-        // Clean up old results first
-        await cleanupOldResults()
-        
         // Get the result ID from sessionStorage
         const resultId = sessionStorage.getItem('queryResultId')
         
@@ -28,7 +25,67 @@ export default function ResultsPageRoute() {
           return
         }
 
-        // Load from IndexedDB
+        // Try to load from sessionStorage first (instant access)
+        const sessionData = sessionStorage.getItem(`queryResult_${resultId}`)
+        if (sessionData) {
+          try {
+            const parsed = JSON.parse(sessionData)
+            setQueryResult(parsed.queryResult)
+            setOriginalQuery(parsed.originalQuery)
+            if (['bar', 'pie', 'line'].includes(parsed.selectedChartType)) {
+              setInitialChartType(parsed.selectedChartType as 'pie' | 'bar' | 'line')
+            }
+            setLoading(false)
+            console.log('Loaded query result from sessionStorage:', parsed.queryResult.data?.length || 0, 'records')
+            
+            // Clean up old results in background (non-blocking)
+            cleanupOldResults().catch(err => console.error('Background cleanup failed:', err))
+            
+            // Try to migrate to IndexedDB in background if not already there
+            if (!resultId.startsWith('temp_')) {
+              // Already in IndexedDB, nothing to do
+              return
+            }
+            
+            // Try to load from IndexedDB in background to get the real ID
+            loadQueryResult(resultId).then((storedData) => {
+              if (storedData) {
+                // Update sessionStorage with real ID (if possible)
+                const realId = storedData.id || resultId
+                safeSetSessionStorage('queryResultId', realId)
+                
+                // Only cache if data is small enough
+                const dataToCache = {
+                  queryResult: storedData.queryResult,
+                  originalQuery: storedData.originalQuery,
+                  selectedChartType: storedData.selectedChartType,
+                  timestamp: storedData.timestamp
+                }
+                const dataSize = JSON.stringify(dataToCache).length
+                if (dataSize < 2 * 1024 * 1024) {
+                  safeSetSessionStorage(`queryResult_${realId}`, JSON.stringify(dataToCache))
+                }
+                // Clean up temp entry
+                try {
+                  sessionStorage.removeItem(`queryResult_${resultId}`)
+                } catch (e) {
+                  // Ignore cleanup errors
+                }
+              }
+            }).catch(err => {
+              console.log('IndexedDB migration in progress or failed (non-critical):', err)
+            })
+            
+            return
+          } catch (parseError) {
+            console.warn('Failed to parse sessionStorage data, falling back to IndexedDB')
+          }
+        }
+
+        // Fallback to IndexedDB if sessionStorage doesn't have it
+        // Clean up old results first (non-blocking)
+        cleanupOldResults().catch(err => console.error('Background cleanup failed:', err))
+        
         const storedData = await loadQueryResult(resultId)
         
         if (storedData) {
@@ -38,6 +95,21 @@ export default function ResultsPageRoute() {
             setInitialChartType(storedData.selectedChartType as 'pie' | 'bar' | 'line')
           }
           console.log('Loaded query result from IndexedDB:', storedData.queryResult.data?.length || 0, 'records')
+          
+          // Try to cache in sessionStorage for faster future access (optional)
+          const dataToCache = {
+            queryResult: storedData.queryResult,
+            originalQuery: storedData.originalQuery,
+            selectedChartType: storedData.selectedChartType,
+            timestamp: storedData.timestamp
+          }
+          const dataSize = JSON.stringify(dataToCache).length
+          // Only cache if data is small enough (< 2MB)
+          if (dataSize < 2 * 1024 * 1024) {
+            safeSetSessionStorage(`queryResult_${resultId}`, JSON.stringify(dataToCache))
+          } else {
+            console.log('Data too large for sessionStorage cache, using IndexedDB only')
+          }
         } else {
           console.warn('Query result not found in IndexedDB, redirecting to home')
           router.push('/')

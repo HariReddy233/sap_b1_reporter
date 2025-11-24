@@ -125,19 +125,19 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
     <div className="h-full w-full flex flex-col">
       <div className="bg-white shadow-2xl border border-gray-200 backdrop-blur-sm overflow-hidden flex flex-col h-full">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 md:px-8 py-5 flex-shrink-0">
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 md:px-8 py-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-3xl font-bold text-white mb-1">
+              <h2 className="text-2xl font-bold text-white mb-0.5">
                 Settings
               </h2>
-              <p className="text-blue-100 text-sm">Configure your connections</p>
+              <p className="text-blue-100 text-xs">Configure your connections</p>
             </div>
             <button
               onClick={onCancel}
               className="p-2 hover:bg-white/20 rounded-xl transition-all duration-200"
             >
-              <X className="w-6 h-6 text-white" />
+              <X className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
@@ -146,28 +146,28 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
         <div className="flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
           <button
             onClick={() => setActiveTab('sap')}
-            className={`flex-1 px-6 py-4 text-center font-semibold transition-all duration-200 ${
+            className={`flex-1 px-6 py-2.5 text-center font-semibold transition-all duration-200 ${
               activeTab === 'sap'
                 ? 'bg-white text-blue-600 border-b-2 border-blue-600'
                 : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
             }`}
           >
             <div className="flex items-center justify-center space-x-2">
-              <Server className="w-5 h-5" />
-              <span>SAP Business One</span>
+              <Server className="w-4 h-4" />
+              <span className="text-sm">SAP Business One</span>
             </div>
           </button>
           <button
             onClick={() => setActiveTab('openai')}
-            className={`flex-1 px-6 py-4 text-center font-semibold transition-all duration-200 ${
+            className={`flex-1 px-6 py-2.5 text-center font-semibold transition-all duration-200 ${
               activeTab === 'openai'
                 ? 'bg-white text-purple-600 border-b-2 border-purple-600'
                 : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
             }`}
           >
             <div className="flex items-center justify-center space-x-2">
-              <Cpu className="w-5 h-5" />
-              <span>OpenAI Configuration</span>
+              <Cpu className="w-4 h-4" />
+              <span className="text-sm">OpenAI Configuration</span>
             </div>
           </button>
         </div>

@@ -187,6 +187,18 @@ async function testSAPB1Connection(settings: SAPB1Settings): Promise<{ success: 
   }
 }
 
+// Handle OPTIONS for CORS preflight
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -195,7 +207,12 @@ export async function POST(request: NextRequest) {
     if (!sapServer || !companyDB || !userName || !password) {
       return NextResponse.json(
         { success: false, message: 'All fields are required' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
       )
     }
 
@@ -221,6 +238,9 @@ export async function POST(request: NextRequest) {
     // This way the frontend can always parse the JSON response
     return NextResponse.json(result, {
       status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
     })
   } catch (error: any) {
     return NextResponse.json(
@@ -228,7 +248,12 @@ export async function POST(request: NextRequest) {
         success: false,
         message: error.message || 'An error occurred while testing the connection',
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+        },
+      }
     )
   }
 }

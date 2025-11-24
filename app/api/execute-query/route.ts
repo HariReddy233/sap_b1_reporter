@@ -1144,20 +1144,42 @@ async function makeSAPB1Request(sessionId: string, url: string, serverUrl: strin
   return data
 }
 
+// Handle OPTIONS for CORS preflight
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
+}
+
 export async function POST(request: NextRequest) {
   // Check if request was aborted
   const signal = request.signal
+  
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+  }
   
   try {
     const body = await request.json()
     const { query, variables = {}, settings } = body
 
     if (!query) {
-      return NextResponse.json({ error: 'Query is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Query is required' }, { 
+        status: 400,
+        headers: corsHeaders,
+      })
     }
 
     if (!settings) {
-      return NextResponse.json({ error: 'Settings are required' }, { status: 400 })
+      return NextResponse.json({ error: 'Settings are required' }, { 
+        status: 400,
+        headers: corsHeaders,
+      })
     }
 
     // Step 1: Login to SAP B1
@@ -1171,7 +1193,10 @@ export async function POST(request: NextRequest) {
     if (!sessionId) {
       return NextResponse.json(
         { error: 'Failed to authenticate with SAP B1. Please check your credentials.' },
-        { status: 401 }
+        { 
+          status: 401,
+          headers: corsHeaders,
+        }
       )
     }
 
@@ -1192,13 +1217,19 @@ export async function POST(request: NextRequest) {
       console.error('OpenAI query generation error:', openaiError)
       return NextResponse.json(
         { error: `Failed to generate query: ${openaiError.message || 'OpenAI API error'}` },
-        { status: 500 }
+        { 
+          status: 500,
+          headers: corsHeaders,
+        }
       )
     }
 
     // Check if request was cancelled
     if (signal.aborted) {
-      return NextResponse.json({ error: 'Request cancelled by user' }, { status: 499 })
+      return NextResponse.json({ error: 'Request cancelled by user' }, { 
+        status: 499,
+        headers: corsHeaders,
+      })
     }
 
     // Step 3: Execute the query using the selected object (limit to top 50 records)
@@ -1358,6 +1389,8 @@ export async function POST(request: NextRequest) {
       data: chartData,
       rawResult: result,
       recommendedChartTypes, // Add recommended chart types
+    }, {
+      headers: corsHeaders,
     })
   } catch (error: any) {
     console.error('Error in execute-query:', error)
@@ -1372,7 +1405,10 @@ export async function POST(request: NextRequest) {
         error: error.message || 'An error occurred while executing the query',
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: corsHeaders,
+      }
     )
   }
 }
