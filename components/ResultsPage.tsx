@@ -154,7 +154,7 @@ export default function ResultsPage({ queryResult, originalQuery, onBack, initia
           </div>
         </div>
         <p className="text-sm text-gray-600">
-          <span className="font-medium">Query:</span> <span className="italic">"{originalQuery}"</span>
+          <span className="font-medium">Query:</span> <span className="italic">&quot;{originalQuery}&quot;</span>
         </p>
       </div>
 
