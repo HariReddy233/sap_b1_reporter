@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Download, BarChart3, PieChart, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Download, BarChart3, PieChart, TrendingUp, AlertCircle, Clock } from 'lucide-react'
 import ChartDisplay from './ChartDisplay'
 
 interface QueryResult {
@@ -11,6 +11,12 @@ interface QueryResult {
   data: any[]
   rawResult: any
   recommendedChartTypes?: ('pie' | 'bar' | 'line')[]
+  bestChartType?: 'pie' | 'bar' | 'line'
+  chartConfig?: {
+    xAxisField?: string
+    yAxisField?: string
+    groupByField?: string
+  }
 }
 
 interface ResultsPageProps {
@@ -18,13 +24,19 @@ interface ResultsPageProps {
   originalQuery: string
   onBack: () => void
   initialChartType?: 'pie' | 'bar' | 'line'
+  dataTimestamp?: number // When the data was fetched
 }
 
-export default function ResultsPage({ queryResult, originalQuery, onBack, initialChartType = 'bar' }: ResultsPageProps) {
-  // Get recommended chart types or default to all
-  const recommendedTypes = queryResult.recommendedChartTypes || ['bar', 'pie', 'line']
-  const defaultChartType = recommendedTypes.includes(initialChartType) ? initialChartType : recommendedTypes[0]
+export default function ResultsPage({ queryResult, originalQuery, onBack, initialChartType = 'bar', dataTimestamp }: ResultsPageProps) {
+  // Use AI-determined best chart type, or fallback to recommended/initial
+  const bestChartType = queryResult.bestChartType || initialChartType
+  const recommendedTypes = queryResult.recommendedChartTypes || [bestChartType]
+  const defaultChartType = bestChartType || (recommendedTypes.includes(initialChartType) ? initialChartType : recommendedTypes[0])
   const [chartType, setChartType] = useState<'pie' | 'bar' | 'line'>(defaultChartType)
+
+  // Calculate data age if timestamp is provided
+  const dataAge = dataTimestamp ? Math.floor((Date.now() - dataTimestamp) / 1000 / 60) : null // Age in minutes
+  const isCachedData = dataAge !== null && dataAge > 0
 
   // Log data length for debugging
   console.log('ResultsPage: Query result data length:', queryResult.data?.length || 0)
@@ -119,6 +131,25 @@ export default function ResultsPage({ queryResult, originalQuery, onBack, initia
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      {/* Cached Data Warning */}
+      {isCachedData && dataAge !== null && (
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-3 border border-amber-200 shadow-sm">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-800">
+                Showing Cached Data
+              </p>
+              <p className="text-xs text-gray-600 mt-0.5">
+                This data was fetched {dataAge} {dataAge === 1 ? 'minute' : 'minutes'} ago. 
+                {dataAge > 30 && ' The data may be outdated. Please run a new query to get the latest data.'}
+              </p>
+            </div>
+            <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+          </div>
+        </div>
+      )}
+
       {/* Header with Back Button */}
       <div className="flex items-center justify-between">
         <button
@@ -158,61 +189,65 @@ export default function ResultsPage({ queryResult, originalQuery, onBack, initia
         </p>
       </div>
 
-      {/* Chart Type Selector - Compact Design */}
-      <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-200">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-base font-bold text-gray-800">Visualization Type</h3>
-          {recommendedTypes.length < 3 && (
+      {/* Chart Type Selector - Show only if multiple recommendations */}
+      {recommendedTypes.length > 1 && (
+        <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-bold text-gray-800">Visualization Type</h3>
             <span className="text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md font-semibold border border-blue-200">
-              ✨ Recommended
+              ✨ AI Recommended
             </span>
-          )}
+          </div>
+          <div className="flex flex-wrap gap-2.5">
+            {recommendedTypes.includes('bar') && (
+              <button
+                onClick={() => setChartType('bar')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
+                  chartType === 'bar'
+                    ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-blue-50 border border-gray-300 hover:border-blue-300'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>Bar</span>
+              </button>
+            )}
+            {recommendedTypes.includes('pie') && (
+              <button
+                onClick={() => setChartType('pie')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
+                  chartType === 'pie'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-purple-50 border border-gray-300 hover:border-purple-300'
+                }`}
+              >
+                <PieChart className="w-4 h-4" />
+                <span>Pie</span>
+              </button>
+            )}
+            {recommendedTypes.includes('line') && (
+              <button
+                onClick={() => setChartType('line')}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
+                  chartType === 'line'
+                    ? 'bg-gradient-to-r from-green-500 to-teal-600 text-white shadow-lg scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-green-50 border border-gray-300 hover:border-green-300'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4" />
+                <span>Line</span>
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2.5">
-          {recommendedTypes.includes('bar') && (
-            <button
-              onClick={() => setChartType('bar')}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
-                chartType === 'bar'
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg scale-105'
-                  : 'bg-gray-50 text-gray-700 hover:bg-blue-50 border border-gray-300 hover:border-blue-300'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>Bar</span>
-            </button>
-          )}
-          {recommendedTypes.includes('pie') && (
-            <button
-              onClick={() => setChartType('pie')}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
-                chartType === 'pie'
-                  ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg scale-105'
-                  : 'bg-gray-50 text-gray-700 hover:bg-purple-50 border border-gray-300 hover:border-purple-300'
-              }`}
-            >
-              <PieChart className="w-4 h-4" />
-              <span>Pie</span>
-            </button>
-          )}
-          {recommendedTypes.includes('line') && (
-            <button
-              onClick={() => setChartType('line')}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all font-semibold text-sm ${
-                chartType === 'line'
-                  ? 'bg-gradient-to-r from-green-500 to-teal-600 text-white shadow-lg scale-105'
-                  : 'bg-gray-50 text-gray-700 hover:bg-green-50 border border-gray-300 hover:border-green-300'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4" />
-              <span>Line</span>
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
-      {/* Chart Display */}
-      <ChartDisplay data={queryResult.data} chartType={chartType} />
+      {/* Chart Display with AI-determined configuration */}
+      <ChartDisplay 
+        data={queryResult.data} 
+        chartType={chartType}
+        chartConfig={queryResult.chartConfig}
+      />
     </div>
   )
 }

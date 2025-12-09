@@ -3,16 +3,19 @@
 import { useState, useEffect } from 'react'
 import MainInterface from '@/components/MainInterface'
 import SettingsPanel from '@/components/SettingsPanel'
+import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
+import SavedReports from '@/components/SavedReports'
+import TemplatedAnalysis from '@/components/TemplatedAnalysis'
 import { loadSettings, saveSettings, clearSettings } from '@/lib/storage'
 import { cleanupSessionStorage } from '@/lib/indexeddb'
 
 const defaultSettings = {
-  sapServer: 'https://b1.ativy.mx:50097/b1s/v1/Login',
-  companyDB: 'MEDILIGHT_CG_TEST',
-  userName: 'manager',
+  sapServer: 'https://b1.ativy.mx:50077/b1s/v1/Login',
+  companyDB: 'SBODEMOUS',
+  userName: 'Support',
   password: 'Chung@890',
-  openaiApiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
+  openaiApiKey: process.env.OPENAI_API_KEY || '',
   openaiModel: 'gpt-3.5-turbo',
 }
 
@@ -20,6 +23,7 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState(defaultSettings)
   const [loginSuccess, setLoginSuccess] = useState(false)
+  const [activeSection, setActiveSection] = useState<'chat' | 'reports' | 'settings' | 'templatedAnalysis'>('chat')
 
   // Clean up sessionStorage on app load to prevent quota issues
   useEffect(() => {
@@ -76,6 +80,7 @@ export default function Home() {
   const handleSaveSettings = (newSettings: typeof defaultSettings) => {
     setSettings(newSettings)
     setShowSettings(false)
+    setActiveSection('chat')
     // Save to session storage with current login status
     saveSettings(newSettings, loginSuccess)
   }
@@ -108,34 +113,70 @@ export default function Home() {
 
   const isConfigured = !!(settings.sapServer && settings.companyDB && settings.userName && settings.password)
 
+  const handleSectionChange = (section: 'chat' | 'reports' | 'settings' | 'templatedAnalysis') => {
+    setActiveSection(section)
+    if (section === 'settings') {
+      setShowSettings(true)
+    } else {
+      setShowSettings(false)
+    }
+  }
+
+  const handleSettingsClick = () => {
+    setActiveSection('settings')
+    setShowSettings(true)
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-white">
-      <Header onSettingsClick={() => setShowSettings(true)} />
+    <div className="min-h-screen bg-sky-50 flex overflow-hidden">
+      {/* Sidebar */}
+      <Sidebar
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
+        onSettingsClick={handleSettingsClick}
+        environment="Production (SAP B1)"
+        isConnected={loginSuccess}
+      />
       
-      <main className={`relative z-10 ${showSettings ? 'h-[calc(100vh-80px)] overflow-hidden' : 'container mx-auto px-4 py-8'}`}>
-        {showSettings ? (
-          <SettingsPanel
-            settings={settings}
-            onSave={handleSaveSettings}
-            onCancel={() => {
-              // When closing settings, reload from session storage to ensure sync
-              const stored = loadSettings()
-              if (stored) {
-                setSettings(stored.settings)
-                setLoginSuccess(stored.loginSuccess)
-              }
-              setShowSettings(false)
-            }}
-            onLoginSuccess={handleLoginSuccess}
-          />
-        ) : (
-          <MainInterface 
-            settings={settings} 
-            isConfigured={isConfigured}
-            loginSuccess={loginSuccess}
-          />
-        )}
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 ml-64 flex flex-col overflow-hidden">
+        {/* Header */}
+        <Header />
+        
+        <main className={`relative z-10 flex-1 flex flex-col overflow-hidden ${showSettings ? '' : 'px-8 py-8'}`}>
+          {showSettings ? (
+            <SettingsPanel
+              settings={settings}
+              onSave={handleSaveSettings}
+              onCancel={() => {
+                // When closing settings, reload from session storage to ensure sync
+                const stored = loadSettings()
+                if (stored) {
+                  setSettings(stored.settings)
+                  setLoginSuccess(stored.loginSuccess)
+                }
+                setShowSettings(false)
+                setActiveSection('chat')
+              }}
+              onLoginSuccess={handleLoginSuccess}
+            />
+          ) : activeSection === 'reports' ? (
+            <SavedReports />
+          ) : activeSection === 'templatedAnalysis' ? (
+            <TemplatedAnalysis 
+              settings={settings} 
+              isConfigured={isConfigured}
+              loginSuccess={loginSuccess}
+            />
+          ) : (
+            <MainInterface 
+              settings={settings} 
+              isConfigured={isConfigured}
+              loginSuccess={loginSuccess}
+            />
+          )}
+        </main>
+      </div>
     </div>
   )
 }

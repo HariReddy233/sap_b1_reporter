@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Save, Plug, CheckCircle, XCircle, Loader2, Eye, EyeOff, Server, Database, User, Lock, Key, Cpu, ArrowRight } from 'lucide-react'
+import { X, Save, Plug, CheckCircle, XCircle, Loader2, Eye, EyeOff, Server, Database, User, Lock, Shield, Users, Settings as SettingsIcon, Menu, Zap, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { saveSettings, loadSettings } from '@/lib/storage'
 
 interface Settings {
@@ -34,8 +34,8 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
   const [testingConnection, setTestingConnection] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [activeTab, setActiveTab] = useState<'sap' | 'openai'>('sap')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [environmentName, setEnvironmentName] = useState('Production')
 
   // Update form data when settings prop changes (but only if no stored data exists)
   useEffect(() => {
@@ -122,174 +122,209 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
   }
 
   return (
-    <div className="h-full w-full flex flex-col">
-      <div className="bg-white shadow-2xl border border-gray-200 backdrop-blur-sm overflow-hidden flex flex-col h-full">
-        {/* Header - Modern Design */}
-        <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-6 md:px-8 py-4 flex-shrink-0 shadow-lg">
+    <div className="h-full w-full flex flex-col bg-sky-50">
+      <div className="bg-white shadow-lg overflow-hidden flex flex-col h-full">
+        {/* Header with Close Button */}
+        <div className="bg-white px-6 py-3.5 flex-shrink-0 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-1 tracking-tight">
-                Settings
+            <div className="flex items-center space-x-3">
+              <h2 className="text-base font-semibold text-gray-900">
+                1 Connect SAP B1
               </h2>
-              <p className="text-blue-100 text-sm font-medium">Configure your connections</p>
+              <span className="text-gray-400 text-sm">2 Try Sample Question</span>
             </div>
             <button
               onClick={onCancel}
-              className="p-2.5 hover:bg-white/20 rounded-xl transition-all duration-300 hover:rotate-90 transform"
+              className="p-1.5 hover:bg-gray-100 rounded-lg transition-all duration-200"
             >
-              <X className="w-5 h-5 text-white" />
+              <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
 
-        {/* Tab Navigation - Modern Design */}
-        <div className="flex border-b border-gray-200 bg-gradient-to-b from-gray-50 to-white flex-shrink-0 shadow-sm">
-          <button
-            onClick={() => setActiveTab('sap')}
-            className={`flex-1 px-6 py-3 text-center font-semibold transition-all duration-300 relative ${
-              activeTab === 'sap'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <Server className={`w-4 h-4 transition-transform duration-300 ${activeTab === 'sap' ? 'scale-110' : ''}`} />
-              <span className="text-sm">SAP Business One</span>
-            </div>
-            {activeTab === 'sap' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('openai')}
-            className={`flex-1 px-6 py-3 text-center font-semibold transition-all duration-300 relative ${
-              activeTab === 'openai'
-                ? 'bg-white text-purple-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-white/50'
-            }`}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <Cpu className={`w-4 h-4 transition-transform duration-300 ${activeTab === 'openai' ? 'scale-110' : ''}`} />
-              <span className="text-sm">OpenAI Configuration</span>
-            </div>
-            {activeTab === 'openai' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-600 to-pink-600"></div>
-            )}
-          </button>
-        </div>
+        {/* Main Content - Two Panel Layout */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+          {/* Left Panel - Information */}
+          <div className="w-full lg:w-2/5 bg-gradient-to-br from-sky-50 via-blue-50 to-sky-50 p-8 lg:p-10 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-gray-200">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-4 leading-tight">
+                Connect your SAP Business One data
+              </h1>
+              <p className="text-gray-700 text-base mb-8 leading-relaxed">
+                Configure your own REST API / Service Layer credentials so the AI Copilot can securely query your SAP B1 data to generate insights.
+              </p>
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col p-6 md:p-8 overflow-y-auto bg-gradient-to-b from-white to-gray-50">
-          {/* SAP B1 Settings Page */}
-          {activeTab === 'sap' && (
-            <div className="space-y-6 flex-1">
-              {/* Page Header - Modern */}
-              <div className="mb-8">
-                <div className="flex items-center space-x-4 mb-3">
-                  <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-300">
-                    <Server className="w-7 h-7 text-white" />
+              {/* Security Features */}
+              <div className="space-y-6">
+                <div className="flex items-start space-x-4">
+                  <div className="p-2.5 bg-blue-100 rounded-xl flex-shrink-0 shadow-sm">
+                    <Shield className="w-6 h-6 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-800 tracking-tight">SAP Business One</h3>
-                    <p className="text-sm text-gray-600 font-medium">Service Layer Connection</p>
+                    <h3 className="font-semibold text-gray-900 mb-1.5 text-base">Secure & User-Specific</h3>
+                    <p className="text-gray-600 text-sm leading-relaxed">Your credentials stay encrypted. We never store raw passwords in plain text.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <div className="p-2.5 bg-purple-100 rounded-xl flex-shrink-0 shadow-sm">
+                    <Users className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1.5 text-base">Access Control Respect</h3>
+                    <p className="text-gray-600 text-sm leading-relaxed">The AI only sees the data your SAP user account is permitted to access.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-4">
+                  <div className="p-2.5 bg-green-100 rounded-xl flex-shrink-0 shadow-sm">
+                    <SettingsIcon className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-1.5 text-base">Full Control</h3>
+                    <p className="text-gray-600 text-sm leading-relaxed">You can update credentials or revoke access anytime in your Settings.</p>
                   </div>
                 </div>
               </div>
-              {/* Form Fields - Modern Card */}
-              <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-200 shadow-lg shadow-gray-100">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
-                      <Server className="w-4 h-4 mr-2 text-blue-600" />
-                      Server URL
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.sapServer}
-                      onChange={(e) => setFormData({ ...formData, sapServer: e.target.value })}
-                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
-                      placeholder="https://localhost:50000"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
-                      <Database className="w-4 h-4 mr-2 text-blue-600" />
-                      Company Database
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.companyDB}
-                      onChange={(e) => setFormData({ ...formData, companyDB: e.target.value })}
-                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
-                      placeholder="Database Name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
-                      <User className="w-4 h-4 mr-2 text-blue-600" />
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.userName}
-                      onChange={(e) => setFormData({ ...formData, userName: e.target.value })}
-                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
-                      placeholder="username"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
-                      <Lock className="w-4 h-4 mr-2 text-blue-600" />
-                      Password
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        className="w-full px-4 py-3.5 pr-12 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
-                        placeholder="Password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-all duration-200 p-1.5 rounded-lg hover:bg-gray-100"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
-                        )}
-                      </button>
-                    </div>
+            </div>
+
+            {/* Trusted Connection */}
+            <div className="flex items-center space-x-2.5 text-gray-600 mt-6 pt-6 border-t border-gray-200">
+              <Lock className="w-5 h-5 text-gray-500" />
+              <span className="text-sm font-medium">End-to-end encrypted connection via TLS 1.3</span>
+            </div>
+          </div>
+
+          {/* Right Panel - Form */}
+          <div className="w-full lg:w-3/5 bg-white p-8 lg:p-10 overflow-y-auto">
+            <form onSubmit={handleSubmit} className="flex flex-col h-full">
+              {/* Form Header */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <h2 className="text-2xl font-bold text-gray-900">SAP B1 Credentials</h2>
+                    <Menu className="w-5 h-5 text-gray-400" />
                   </div>
                 </div>
-                
-                {/* Test Connection Button and Result - Modern */}
-                <div className="mt-8 pt-6 border-t border-gray-200">
+                <span className="inline-block px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg">
+                  REST API / Service Layer
+                </span>
+              </div>
+
+              {/* Form Fields */}
+              <div className="space-y-5 flex-1">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Environment Name
+                  </label>
+                  <input
+                    type="text"
+                    value={environmentName}
+                    onChange={(e) => setEnvironmentName(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-gray-800 text-sm"
+                    placeholder="Production"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Service Layer Base URL
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.sapServer}
+                    onChange={(e) => setFormData({ ...formData, sapServer: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-gray-800 text-sm"
+                    placeholder="https://server:50000/b1s/v1"
+                  />
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    Must be accessible from the internet or via VPN tunnel.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Company DB Schema
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.companyDB}
+                    onChange={(e) => setFormData({ ...formData, companyDB: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-gray-800 text-sm"
+                    placeholder="e.g. SBODemoUS"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700 flex items-center space-x-2">
+                    <User className="w-4 h-4" />
+                    <span>SAP B1 Username</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.userName}
+                    onChange={(e) => setFormData({ ...formData, userName: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-gray-800 text-sm"
+                    placeholder="manager"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700 flex items-center space-x-2">
+                    <Lock className="w-4 h-4" />
+                    <span>SAP B1 Password</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="w-full px-4 py-3 pr-12 bg-gray-50 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white transition-all text-gray-800 text-sm"
+                      placeholder="Password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none p-1"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Advanced Settings */}
+                <div className="border-t border-gray-200 pt-5">
                   <button
                     type="button"
-                    onClick={handleTestConnection}
-                    disabled={testingConnection}
-                    className="flex items-center space-x-3 px-6 py-3.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed font-semibold transform hover:scale-105 disabled:transform-none"
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                    className="flex items-center justify-between w-full text-left text-sm font-semibold text-gray-700 hover:text-gray-900 transition-colors"
                   >
-                    {testingConnection ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Testing Connection...</span>
-                      </>
+                    <span>Advanced Settings (Optional)</span>
+                    {showAdvanced ? (
+                      <ChevronUp className="w-5 h-5 text-gray-500" />
                     ) : (
-                      <>
-                        <Plug className="w-5 h-5" />
-                        <span>Test Connection</span>
-                      </>
+                      <ChevronDown className="w-5 h-5 text-gray-500" />
                     )}
                   </button>
-                  
+                  {showAdvanced && (
+                    <div className="mt-4 space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      {/* Advanced settings can be added here if needed */}
+                      <p className="text-sm text-gray-500">Advanced configuration options will be available here.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Test Connection Button and Result */}
+                <div className="space-y-4">
                   {testResult && (
-                    <div className={`mt-4 p-4 rounded-xl flex items-start space-x-3 shadow-md ${
+                    <div className={`p-4 rounded-lg flex items-start space-x-3 ${
                       testResult.success
-                        ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200'
-                        : 'bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200'
+                        ? 'bg-green-50 border border-green-200'
+                        : 'bg-red-50 border border-red-200'
                     }`}>
                       {testResult.success ? (
                         <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
@@ -297,7 +332,7 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                         <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                       )}
                       <div className="flex-1">
-                        <p className={`text-sm font-semibold ${
+                        <p className={`text-sm font-medium ${
                           testResult.success ? 'text-green-800' : 'text-red-800'
                         }`}>
                           {testResult.message}
@@ -307,105 +342,49 @@ export default function SettingsPanel({ settings, onSave, onCancel, onLoginSucce
                   )}
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* OpenAI Configuration Page */}
-          {activeTab === 'openai' && (
-            <div className="space-y-6 flex-1">
-              {/* Page Header - Modern */}
-              <div className="mb-8">
-                <div className="flex items-center space-x-4 mb-3">
-                  <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-300">
-                    <Cpu className="w-7 h-7 text-white" />
+              {/* Action Buttons */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={testingConnection}
+                    className="flex-1 flex items-center justify-center space-x-2 px-5 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm shadow-md hover:shadow-lg"
+                  >
+                    {testingConnection ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-white" />
+                        <span>Testing Connection...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-5 h-5 text-white" />
+                        <span>Test Connection</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 flex items-center justify-center space-x-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg font-semibold text-base"
+                  >
+                    <span>Save & Continue</span>
+                    <ArrowRight className="w-5 h-5 text-white" />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center space-x-2 text-gray-600">
+                    <Lock className="w-4 h-4" />
+                    <span className="text-xs font-medium">End-to-end encrypted connection via TLS 1.3</span>
                   </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-800 tracking-tight">OpenAI Configuration</h3>
-                    <p className="text-sm text-gray-600 font-medium">AI Model Settings</p>
-                  </div>
+                  <p className="text-xs text-gray-500">
+                    You can manage multiple environments later in Settings.
+                  </p>
                 </div>
               </div>
-              {/* Form Fields - Modern Card */}
-              <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-200 shadow-lg shadow-gray-100">
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
-                      <Key className="w-4 h-4 mr-2 text-purple-600" />
-                      API Key
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showApiKey ? "text" : "password"}
-                        value={formData.openaiApiKey}
-                        onChange={(e) => setFormData({ ...formData, openaiApiKey: e.target.value })}
-                        className="w-full px-4 py-3.5 pr-12 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all duration-300 text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-300"
-                        placeholder="sk-proj-..."
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none transition-all duration-200 p-1.5 rounded-lg hover:bg-gray-100"
-                      >
-                        {showApiKey ? (
-                          <EyeOff className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1.5 font-medium">Get your API key from OpenAI platform</p>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="flex items-center text-sm font-semibold text-gray-700 mb-2.5">
-                      <Cpu className="w-4 h-4 mr-2 text-purple-600" />
-                      Model
-                    </label>
-                    <select
-                      value={formData.openaiModel}
-                      onChange={(e) => setFormData({ ...formData, openaiModel: e.target.value })}
-                      className="w-full px-4 py-3.5 bg-gray-50 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all duration-300 text-gray-800 cursor-pointer shadow-sm hover:border-gray-300"
-                    >
-                      <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                      <option value="gpt-4">GPT-4</option>
-                      <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1.5 font-medium">Select the AI model for query processing</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons - Modern */}
-          <div className="flex justify-between items-center pt-6 mt-6 border-t-2 border-gray-200 flex-shrink-0 bg-white rounded-b-2xl">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-6 py-3 border-2 border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 font-semibold shadow-sm hover:shadow-md"
-            >
-              Cancel
-            </button>
-            <div className="flex items-center space-x-3">
-              {activeTab === 'sap' && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('openai')}
-                  className="flex items-center space-x-2 px-6 py-3 text-gray-600 hover:text-gray-800 transition-all duration-300 font-semibold hover:bg-gray-50 rounded-xl"
-                >
-                  <span>Next: OpenAI Configuration</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              )}
-              <button
-                type="submit"
-                className="px-8 py-3.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center space-x-2 font-semibold transform hover:scale-105"
-              >
-                <Save className="w-5 h-5" />
-                <span>Save Settings</span>
-              </button>
-            </div>
+            </form>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )

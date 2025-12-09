@@ -1,8 +1,9 @@
 // IndexedDB utility for storing large query results
 
 const DB_NAME = 'SAP_B1_QueryResults'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NAME = 'queryResults'
+const SAVED_REPORTS_STORE = 'savedReports'
 
 interface QueryResultData {
   id: string
@@ -26,9 +27,24 @@ export async function openDB(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = (event: any) => {
       const db = event.target.result
+      const transaction = event.target.transaction
+      
+      // Create queryResults store if it doesn't exist
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         const objectStore = db.createObjectStore(STORE_NAME, { keyPath: 'id' })
         objectStore.createIndex('timestamp', 'timestamp', { unique: false })
+      }
+      
+      // Create savedReports store if it doesn't exist (for version 2 upgrade)
+      if (!db.objectStoreNames.contains(SAVED_REPORTS_STORE)) {
+        try {
+          const savedReportsStore = db.createObjectStore(SAVED_REPORTS_STORE, { keyPath: 'id' })
+          savedReportsStore.createIndex('timestamp', 'timestamp', { unique: false })
+          savedReportsStore.createIndex('title', 'title', { unique: false })
+          console.log('Created savedReports store in IndexedDB')
+        } catch (error) {
+          console.error('Error creating savedReports store:', error)
+        }
       }
     }
   })
@@ -226,6 +242,183 @@ export function safeSetSessionStorage(key: string, value: string): boolean {
       console.error(`Error setting sessionStorage for key ${key}:`, error)
       return false
     }
+  }
+}
+
+// Saved Reports Functions
+export interface SavedReport {
+  id: string
+  title: string
+  description?: string
+  queryResult: any
+  originalQuery: string
+  selectedChartType: 'pie' | 'bar' | 'line'
+  chartConfig?: any
+  tags?: string[]
+  timestamp: number
+  lastModified: number
+}
+
+export async function saveReport(
+  title: string,
+  queryResult: any,
+  originalQuery: string,
+  selectedChartType: 'pie' | 'bar' | 'line',
+  description?: string,
+  tags?: string[],
+  chartConfig?: any
+): Promise<string> {
+  try {
+    const db = await openDB()
+    const id = `report_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    
+    const report: SavedReport = {
+      id,
+      title,
+      description: description || `Report for: ${originalQuery}`,
+      queryResult,
+      originalQuery,
+      selectedChartType,
+      chartConfig,
+      tags: tags || [],
+      timestamp: Date.now(),
+      lastModified: Date.now(),
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SAVED_REPORTS_STORE], 'readwrite')
+      const store = transaction.objectStore(SAVED_REPORTS_STORE)
+      const request = store.put(report)
+
+      request.onsuccess = () => {
+        console.log(`Saved report to IndexedDB with ID: ${id}`)
+        resolve(id)
+      }
+
+      request.onerror = () => {
+        reject(new Error('Failed to save report to IndexedDB'))
+      }
+    })
+  } catch (error) {
+    console.error('Error saving report to IndexedDB:', error)
+    throw error
+  }
+}
+
+export async function updateReport(
+  id: string,
+  updates: Partial<SavedReport>
+): Promise<void> {
+  try {
+    const db = await openDB()
+    const existingReport = await loadReport(id)
+    
+    if (!existingReport) {
+      throw new Error('Report not found')
+    }
+
+    const updatedReport: SavedReport = {
+      ...existingReport,
+      ...updates,
+      id, // Ensure ID doesn't change
+      lastModified: Date.now(),
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SAVED_REPORTS_STORE], 'readwrite')
+      const store = transaction.objectStore(SAVED_REPORTS_STORE)
+      const request = store.put(updatedReport)
+
+      request.onsuccess = () => {
+        console.log(`Updated report in IndexedDB: ${id}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        reject(new Error('Failed to update report in IndexedDB'))
+      }
+    })
+  } catch (error) {
+    console.error('Error updating report in IndexedDB:', error)
+    throw error
+  }
+}
+
+export async function loadReport(id: string): Promise<SavedReport | null> {
+  try {
+    const db = await openDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SAVED_REPORTS_STORE], 'readonly')
+      const store = transaction.objectStore(SAVED_REPORTS_STORE)
+      const request = store.get(id)
+
+      request.onsuccess = () => {
+        const result = request.result
+        if (result) {
+          console.log(`Loaded report from IndexedDB: ${result.title}`)
+        }
+        resolve(result || null)
+      }
+
+      request.onerror = () => {
+        reject(new Error('Failed to load report from IndexedDB'))
+      }
+    })
+  } catch (error) {
+    console.error('Error loading from IndexedDB:', error)
+    throw error
+  }
+}
+
+export async function getAllReports(): Promise<SavedReport[]> {
+  try {
+    const db = await openDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SAVED_REPORTS_STORE], 'readonly')
+      const store = transaction.objectStore(SAVED_REPORTS_STORE)
+      const request = store.getAll()
+
+      request.onsuccess = () => {
+        const reports = request.result || []
+        // Sort by lastModified descending (newest first)
+        reports.sort((a: SavedReport, b: SavedReport) => b.lastModified - a.lastModified)
+        console.log(`Loaded ${reports.length} reports from IndexedDB`)
+        resolve(reports)
+      }
+
+      request.onerror = () => {
+        reject(new Error('Failed to load reports from IndexedDB'))
+      }
+    })
+  } catch (error) {
+    console.error('Error loading reports from IndexedDB:', error)
+    throw error
+  }
+}
+
+export async function deleteReport(id: string): Promise<void> {
+  try {
+    const db = await openDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SAVED_REPORTS_STORE], 'readwrite')
+      const store = transaction.objectStore(SAVED_REPORTS_STORE)
+      const request = store.delete(id)
+
+      request.onsuccess = () => {
+        console.log(`Deleted report from IndexedDB: ${id}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        reject(new Error('Failed to delete report from IndexedDB'))
+      }
+    })
+  } catch (error) {
+    console.error('Error deleting report from IndexedDB:', error)
+    throw error
   }
 }
 

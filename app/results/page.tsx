@@ -11,6 +11,7 @@ export default function ResultsPageRoute() {
   const [originalQuery, setOriginalQuery] = useState<string>('')
   const [initialChartType, setInitialChartType] = useState<'pie' | 'bar' | 'line'>('bar')
   const [loading, setLoading] = useState(true)
+  const [dataTimestamp, setDataTimestamp] = useState<number | undefined>(undefined)
 
   useEffect(() => {
     // Load query result - check sessionStorage first (instant), then IndexedDB (for persistence)
@@ -35,6 +36,7 @@ export default function ResultsPageRoute() {
             if (['bar', 'pie', 'line'].includes(parsed.selectedChartType)) {
               setInitialChartType(parsed.selectedChartType as 'pie' | 'bar' | 'line')
             }
+            setDataTimestamp(parsed.timestamp || Date.now())
             setLoading(false)
             console.log('Loaded query result from sessionStorage:', parsed.queryResult.data?.length || 0, 'records')
             
@@ -94,6 +96,7 @@ export default function ResultsPageRoute() {
           if (['bar', 'pie', 'line'].includes(storedData.selectedChartType)) {
             setInitialChartType(storedData.selectedChartType as 'pie' | 'bar' | 'line')
           }
+          setDataTimestamp(storedData.timestamp)
           console.log('Loaded query result from IndexedDB:', storedData.queryResult.data?.length || 0, 'records')
           
           // Try to cache in sessionStorage for faster future access (optional)
@@ -136,12 +139,23 @@ export default function ResultsPageRoute() {
     try {
       const resultId = sessionStorage.getItem('queryResultId')
       if (resultId) {
-        await deleteQueryResult(resultId)
+        // Clear sessionStorage first
         sessionStorage.removeItem('queryResultId')
+        // Also clear any cached query result data
+        try {
+          sessionStorage.removeItem(`queryResult_${resultId}`)
+        } catch (e) {
+          // Ignore if doesn't exist
+        }
+        // Delete from IndexedDB in background (non-blocking)
+        deleteQueryResult(resultId).catch(err => {
+          console.error('Error deleting from IndexedDB:', err)
+        })
       }
     } catch (error) {
       console.error('Error cleaning up query result:', error)
     }
+    // Navigate back to home
     router.push('/')
   }
 
@@ -168,6 +182,7 @@ export default function ResultsPageRoute() {
           originalQuery={originalQuery}
           onBack={handleBackToQuery}
           initialChartType={initialChartType}
+          dataTimestamp={dataTimestamp}
         />
       </div>
     </div>

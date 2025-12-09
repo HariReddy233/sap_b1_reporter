@@ -1,12 +1,17 @@
 'use client'
 
-import { useState, useMemo, useEffect, memo } from 'react'
+import { useState, useMemo, memo } from 'react'
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { ChevronLeft, ChevronRight, CheckSquare, Square } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface ChartDisplayProps {
   data: any[]
   chartType: 'pie' | 'bar' | 'line'
+  chartConfig?: {
+    xAxisField?: string
+    yAxisField?: string
+    groupByField?: string
+  }
 }
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#f97316', '#6366f1', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#ef4444', '#8b5cf6', '#3b82f6']
@@ -41,8 +46,8 @@ const findNameField = (item: any, valueField: string): string => {
   ) || Object.keys(item)[0] || 'name'
 }
 
-// Memoized data transformation
-const transformChartData = (data: any[]): any[] => {
+// Memoized data transformation with AI-determined field mapping
+const transformChartData = (data: any[], chartConfig?: { xAxisField?: string; yAxisField?: string; groupByField?: string }): any[] => {
   if (!Array.isArray(data) || data.length === 0) return []
   
   return data.map((item, index) => {
@@ -56,8 +61,9 @@ const transformChartData = (data: any[]): any[] => {
         return { name: `Item ${index + 1}`, value: 0, valueFieldName: 'Value', ...item }
       }
       
-      const valueField = findValueField(item, numericFields)
-      const nameField = findNameField(item, valueField)
+      // Use AI-determined fields if available, otherwise use fallback logic
+      const valueField = chartConfig?.yAxisField || findValueField(item, numericFields)
+      const nameField = chartConfig?.xAxisField || findNameField(item, valueField)
       
       // Format the name field value
       let nameValue = String(item[nameField] || nameField)
@@ -98,9 +104,10 @@ const transformChartData = (data: any[]): any[] => {
   })
 }
 
-function ChartDisplay({ data, chartType }: ChartDisplayProps) {
-  const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 50
+function ChartDisplay({ data, chartType, chartConfig, currentPage: externalCurrentPage, rowsPerPage = 10, onPageChange }: ChartDisplayProps) {
+  const [internalCurrentPage, setInternalCurrentPage] = useState(1)
+  const currentPage = externalCurrentPage !== undefined ? externalCurrentPage : internalCurrentPage
+  const itemsPerPage = rowsPerPage
   
   // Get all available fields from data - memoized
   const allFields = useMemo(() => {
@@ -114,35 +121,34 @@ function ChartDisplay({ data, chartType }: ChartDisplayProps) {
   // Create a stable key for the fields to detect when they actually change
   const fieldsKey = useMemo(() => allFields.sort().join(','), [allFields])
   
-  // State for selected fields - default to empty (user must select)
-  const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set())
-  const [lastFieldsKey, setLastFieldsKey] = useState<string>('')
-  
-  // Reset selected fields only when the actual field structure changes
-  useEffect(() => {
-    if (fieldsKey !== lastFieldsKey && fieldsKey.length > 0) {
-      setSelectedFields(new Set())
-      setLastFieldsKey(fieldsKey)
-    } else if (lastFieldsKey === '' && fieldsKey.length > 0) {
-      setLastFieldsKey(fieldsKey)
+  // Memoize pagination calculations - show only 10 records at a time
+  const { totalPages, startIndex, endIndex, paginatedData } = useMemo(() => {
+    const total = Math.ceil(data.length / itemsPerPage)
+    const start = (currentPage - 1) * itemsPerPage
+    const end = start + itemsPerPage
+    return {
+      totalPages: total,
+      startIndex: start,
+      endIndex: end,
+      paginatedData: data.slice(start, end)
     }
-  }, [fieldsKey, lastFieldsKey])
+  }, [data, currentPage, itemsPerPage])
 
-  // Memoize chart data transformation - this is the expensive operation
+  // Memoize chart data transformation - use paginated data (only 10 records)
   const chartData = useMemo(() => {
-    if (!data || data.length === 0) return []
+    if (!paginatedData || paginatedData.length === 0) return []
     
-    if (Array.isArray(data)) {
-      return transformChartData(data)
-    } else if (typeof data === 'object') {
-      return Object.entries(data).map(([key, value]) => ({
+    if (Array.isArray(paginatedData)) {
+      return transformChartData(paginatedData, chartConfig)
+    } else if (typeof paginatedData === 'object') {
+      return Object.entries(paginatedData).map(([key, value]) => ({
         name: key,
         value: typeof value === 'number' ? value : parseFloat(String(value)) || 0,
         valueFieldName: 'Value',
       }))
     }
     return []
-  }, [data])
+  }, [paginatedData, chartConfig])
 
   // Memoize value key
   const valueKey = useMemo(() => {
@@ -158,24 +164,15 @@ function ChartDisplay({ data, chartType }: ChartDisplayProps) {
     return 'value'
   }, [chartData])
 
-  // Memoize pagination calculations
-  const { totalPages, startIndex, endIndex, paginatedData } = useMemo(() => {
-    const total = Math.ceil(data.length / itemsPerPage)
-    const start = (currentPage - 1) * itemsPerPage
-    const end = start + itemsPerPage
-    return {
-      totalPages: total,
-      startIndex: start,
-      endIndex: end,
-      paginatedData: data.slice(start, end)
+  // Handle page change
+  const handlePageChange = (newPage: number) => {
+    if (onPageChange) {
+      onPageChange(newPage)
+    } else {
+      setInternalCurrentPage(newPage)
     }
-  }, [data, currentPage, itemsPerPage])
+  }
   
-  // Memoize table headers
-  const tableHeaders = useMemo(() => 
-    Array.from(selectedFields).filter(field => allFields.includes(field)),
-    [selectedFields, allFields]
-  )
 
   if (!data || data.length === 0) {
     return (
@@ -185,36 +182,49 @@ function ChartDisplay({ data, chartType }: ChartDisplayProps) {
     )
   }
 
-  // Toggle field selection
-  const toggleField = (field: string) => {
-    setSelectedFields(prev => {
-      const newSelected = new Set(prev)
-      if (newSelected.has(field)) {
-        newSelected.delete(field)
-      } else {
-        newSelected.add(field)
-      }
-      return newSelected
-    })
-  }
-  
-  const selectAllFields = () => {
-    setSelectedFields(new Set(allFields))
-  }
-  
-  const deselectAllFields = () => {
-    setSelectedFields(new Set())
-  }
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-4 border border-gray-200">
-      <div className="mb-3">
-        <h3 className="text-lg font-bold text-gray-800 mb-0.5">
-          Data Visualization
-        </h3>
-        <p className="text-xs text-gray-500">
-          Showing all {chartData.length.toLocaleString()} records
-        </p>
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-gray-800 mb-0.5">
+            Data Visualization
+          </h3>
+          <p className="text-xs text-gray-500">
+            Showing {startIndex + 1} to {Math.min(endIndex, data.length)} of {data.length.toLocaleString()} records
+          </p>
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className={`flex items-center space-x-1 px-3 py-1.5 rounded-md transition-all text-xs font-medium ${
+                currentPage === 1
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+              }`}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Prev</span>
+            </button>
+            <span className="text-xs text-gray-600 font-medium px-2">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className={`flex items-center space-x-1 px-3 py-1.5 rounded-md transition-all text-xs font-medium ${
+                currentPage === totalPages
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+              }`}
+            >
+              <span>Next</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
       </div>
       <div className="h-[300px] mb-4">
         <ResponsiveContainer width="100%" height="100%">
@@ -341,165 +351,6 @@ function ChartDisplay({ data, chartType }: ChartDisplayProps) {
         </ResponsiveContainer>
       </div>
 
-      {/* Field Selector */}
-      <div className="mt-4 mb-4 p-3 bg-gray-50 rounded-xl border border-gray-200">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-base font-bold text-gray-800">Select Fields to Display</h4>
-          <div className="flex gap-2">
-            <button
-              onClick={selectAllFields}
-              className="px-2.5 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-all font-semibold"
-            >
-              Select All
-            </button>
-            <button
-              onClick={deselectAllFields}
-              className="px-2.5 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-all font-semibold"
-            >
-              Deselect All
-            </button>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-          {allFields.map((field) => (
-            <button
-              key={field}
-              onClick={() => toggleField(field)}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md transition-all text-left text-xs ${
-                selectedFields.has(field)
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-sm'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-              }`}
-            >
-              {selectedFields.has(field) ? (
-                <CheckSquare className="w-3.5 h-3.5" />
-              ) : (
-                <Square className="w-3.5 h-3.5" />
-              )}
-              <span className="font-medium truncate">{field}</span>
-            </button>
-          ))}
-        </div>
-        {selectedFields.size === 0 && (
-          <p className="mt-3 text-xs text-amber-600 font-medium">
-            ⚠️ Please select at least one field to display in the table
-          </p>
-        )}
-      </div>
-
-      {/* Data Table with Pagination */}
-      <div className="mt-6">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-lg font-bold text-gray-800">Data Details</h4>
-          <div className="text-xs text-gray-600 bg-gray-50 px-2.5 py-1 rounded-md font-medium">
-            Showing {startIndex + 1} to {Math.min(endIndex, data.length)} of {data.length.toLocaleString()} records
-          </div>
-        </div>
-        
-        {selectedFields.size > 0 ? (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full border-collapse bg-white">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  {tableHeaders.map((key) => (
-                    <th key={key} className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-r border-gray-200 last:border-r-0">
-                      {key}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedData.map((row, idx) => (
-                  <tr key={startIndex + idx} className="hover:bg-gray-50 transition-colors border-b border-gray-100">
-                    {tableHeaders.map((header) => {
-                      const val = typeof row === 'object' && row !== null ? row[header] : row
-                      return (
-                        <td key={header} className="px-4 py-3 text-xs text-gray-700 border-r border-gray-100 last:border-r-0">
-                          {val === null || val === undefined 
-                            ? <span className="text-gray-400">-</span>
-                            : typeof val === 'number' 
-                              ? <span className="font-semibold text-gray-900">{val.toLocaleString()}</span>
-                              : <span className="text-gray-700">{String(val)}</span>}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
-            <p className="text-xs text-amber-700 font-medium">Please select at least one field above to display data in the table</p>
-          </div>
-        )}
-
-        {/* Pagination Controls */}
-        {totalPages > 1 && (
-          <div className="mt-4 flex items-center justify-between">
-            <div className="text-xs text-gray-600 font-medium">
-              Page {currentPage} of {totalPages}
-            </div>
-            <div className="flex items-center space-x-1.5">
-              <button
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-                className={`flex items-center space-x-1 px-3 py-1.5 rounded-md transition-all text-xs font-medium ${
-                  currentPage === 1
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                }`}
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span>Prev</span>
-              </button>
-              
-              {/* Page Numbers */}
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum: number
-                  if (totalPages <= 5) {
-                    pageNum = i + 1
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i
-                  } else {
-                    pageNum = currentPage - 2 + i
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1.5 rounded-md transition-all text-xs font-medium ${
-                        currentPage === pageNum
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })}
-              </div>
-              
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-                className={`flex items-center space-x-1 px-3 py-1.5 rounded-md transition-all text-xs font-medium ${
-                  currentPage === totalPages
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                }`}
-              >
-                <span>Next</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   )
 }

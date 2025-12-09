@@ -13,7 +13,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Access-Control-Allow-Origin',
-            value: process.env.NEXT_PUBLIC_ALLOWED_ORIGIN || '*',
+            value: process.env.NEXT_PUBLIC_ALLOWED_ORIGIN || '*'
           },
           {
             key: 'Access-Control-Allow-Methods',

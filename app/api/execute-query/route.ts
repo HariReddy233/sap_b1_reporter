@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedSession, cacheSession, removeSession } from '@/lib/session-manager'
 
+// OpenAI API key from environment variable
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ''
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-3.5-turbo'
+
 interface SAPB1Settings {
   sapServer: string
   companyDB: string
@@ -634,15 +638,24 @@ function analyzeDataForChartTypes(data: any[], query: string): ('pie' | 'bar' | 
   }
 }
 
-// Analyze data structure and recommend chart types using OpenAI (deprecated - kept for reference)
-async function recommendChartTypes(
+// AI-powered chart configuration - determines best chart type AND field mapping
+async function analyzeChartConfigurationWithAI(
   data: any[],
   originalQuery: string,
   openaiSettings: OpenAISettings
-): Promise<('pie' | 'bar' | 'line')[]> {
+): Promise<{
+  bestChartType: 'pie' | 'bar' | 'line'
+  xAxisField?: string
+  yAxisField?: string
+  groupByField?: string
+  recommendedTypes?: ('pie' | 'bar' | 'line')[]
+}> {
   try {
     if (!data || data.length === 0) {
-      return ['bar'] // Default fallback
+      return {
+        bestChartType: 'bar',
+        recommendedTypes: ['bar']
+      }
     }
 
     // Sample first few records to analyze structure
@@ -670,28 +683,75 @@ async function recommendChartTypes(
       }
     })
 
-    const prompt = `Analyze data and recommend 1-3 chart types from: pie, bar, line.
+    // Analyze data structure more deeply
+    const dateFields = fields.filter(f => {
+      const fieldLower = f.toLowerCase()
+      return fieldLower.includes('date') || fieldLower.includes('time') || 
+             fieldLower === 'docdate' || fieldLower === 'createdate'
+    })
+    
+    const sampleData = sample.slice(0, 3).map(item => {
+      const summary: any = {}
+      Object.keys(item).slice(0, 8).forEach(key => {
+        const value = item[key]
+        if (value !== null && value !== undefined) {
+          if (typeof value === 'number') {
+            summary[key] = value
+          } else if (typeof value === 'string' && value.length < 50) {
+            summary[key] = value
+          }
+        }
+      })
+      return summary
+    })
 
-Sample: ${JSON.stringify(sample.slice(0, 2))}
-Fields: ${fields.slice(0, 5).join(', ')}
-Numeric: ${numericFields.slice(0, 3).join(', ') || 'None'}
-Query: "${originalQuery}"
+    const prompt = `You are a data visualization expert. Analyze the data and user query to determine the BEST chart configuration.
 
-Rules:
-- Pie: proportions, 2-10 categories
-- Bar: comparisons, rankings
-- Line: trends over time
+User Query: "${originalQuery}"
 
-Return JSON array only, e.g. ["bar", "pie"]:`
+Data Sample (${data.length} total records):
+${JSON.stringify(sampleData, null, 2)}
 
+Available Fields: ${fields.join(', ')}
+Numeric Fields (Measures): ${numericFields.join(', ') || 'None'}
+Categorical Fields (Dimensions): ${categoricalFields.join(', ') || 'None'}
+Date Fields: ${dateFields.join(', ') || 'None'}
+
+Your Task:
+1. Determine the BEST single chart type: "pie", "bar", or "line"
+2. Select the best X-axis field (dimension - usually categorical or date)
+3. Select the best Y-axis field (measure - usually numeric)
+4. If applicable, select a grouping field (for multi-series charts)
+5. Recommend 1-2 alternative chart types
+
+Chart Selection Rules:
+- Line: Time series, trends over time, continuous progression
+- Bar: Comparisons, rankings, discrete categories, top N items
+- Pie: Proportions, percentages, parts of whole (2-8 categories)
+
+Return ONLY valid JSON in this exact format:
+{
+  "bestChartType": "bar",
+  "xAxisField": "CardName",
+  "yAxisField": "DocTotal",
+  "groupByField": null,
+  "recommendedTypes": ["bar", "line"]
+}`
+
+    // Validate and prepare API key
+    const apiKey = (openaiSettings.openaiApiKey || '').trim()
+    if (!apiKey || apiKey.length < 20) {
+      throw new Error('Invalid OpenAI API key: key is missing or too short')
+    }
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiSettings.openaiApiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: openaiSettings.openaiModel,
+        model: openaiSettings.openaiModel || OPENAI_MODEL,
         messages: [
           {
             role: 'system',
@@ -703,50 +763,86 @@ Return JSON array only, e.g. ["bar", "pie"]:`
           },
         ],
         temperature: 0.2,
-        max_tokens: 50,
+        max_tokens: 200,
       }),
     })
 
     if (!response.ok) {
-      console.warn('OpenAI chart recommendation failed, using default')
-      return ['bar'] // Default fallback
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(`OpenAI API error: ${JSON.stringify(errorData)}`)
     }
 
     const result = await response.json()
     let generatedText = result.choices[0]?.message?.content?.trim() || ''
 
-    // Extract JSON array from response
-    const arrayMatch = generatedText.match(/\[[\s\S]*\]/)
-    if (!arrayMatch) {
-      console.warn('No valid JSON array found in chart recommendation, using default')
-      return ['bar']
+    // Clean up the response - remove markdown code blocks if present
+    generatedText = generatedText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    
+    // Extract JSON from response
+    const jsonMatch = generatedText.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new Error('No valid JSON found in AI chart configuration response')
     }
 
-    const recommendedTypes = JSON.parse(arrayMatch[0])
+    const config = JSON.parse(jsonMatch[0])
     
-    // Validate and filter chart types
-    const validTypes: ('pie' | 'bar' | 'line')[] = []
+    // Validate chart type
     const validChartTypes = ['pie', 'bar', 'line']
+    const bestChartType = validChartTypes.includes(config.bestChartType?.toLowerCase()) 
+      ? config.bestChartType.toLowerCase() as 'pie' | 'bar' | 'line'
+      : 'bar'
     
-    recommendedTypes.forEach((type: string) => {
-      if (validChartTypes.includes(type.toLowerCase())) {
-        validTypes.push(type.toLowerCase() as 'pie' | 'bar' | 'line')
-      }
-    })
-
-    // Limit to 3 chart types max
-    const finalTypes = validTypes.slice(0, 3)
+    // Validate fields exist in data
+    const firstRecord = data[0]
+    const availableFields = firstRecord && typeof firstRecord === 'object' 
+      ? Object.keys(firstRecord) 
+      : []
     
-    // Ensure at least one chart type
-    if (finalTypes.length === 0) {
-      return ['bar']
+    const xAxisField = config.xAxisField && availableFields.includes(config.xAxisField)
+      ? config.xAxisField
+      : undefined
+    
+    const yAxisField = config.yAxisField && availableFields.includes(config.yAxisField)
+      ? config.yAxisField
+      : undefined
+    
+    const groupByField = config.groupByField && availableFields.includes(config.groupByField)
+      ? config.groupByField
+      : undefined
+    
+    // Validate recommended types
+    const recommendedTypes: ('pie' | 'bar' | 'line')[] = []
+    if (Array.isArray(config.recommendedTypes)) {
+      config.recommendedTypes.forEach((type: string) => {
+        if (validChartTypes.includes(type.toLowerCase())) {
+          recommendedTypes.push(type.toLowerCase() as 'pie' | 'bar' | 'line')
+        }
+      })
     }
+    
+    // Ensure best chart type is in recommended types
+    if (!recommendedTypes.includes(bestChartType)) {
+      recommendedTypes.unshift(bestChartType)
+    }
+    
+    // Limit to 3 types max
+    const finalRecommendedTypes = recommendedTypes.slice(0, 3)
 
-    console.log(`Recommended chart types: ${finalTypes.join(', ')}`)
-    return finalTypes
+    console.log(`AI Chart Config: Type=${bestChartType}, X=${xAxisField}, Y=${yAxisField}, Group=${groupByField}`)
+    
+    return {
+      bestChartType,
+      xAxisField,
+      yAxisField,
+      groupByField: groupByField || undefined,
+      recommendedTypes: finalRecommendedTypes.length > 0 ? finalRecommendedTypes : [bestChartType]
+    }
   } catch (error) {
-    console.error('Error recommending chart types:', error)
-    return ['bar'] // Default fallback
+    console.error('Error analyzing chart configuration:', error)
+    return {
+      bestChartType: 'bar',
+      recommendedTypes: ['bar']
+    }
   }
 }
 
@@ -754,7 +850,7 @@ async function generateQueryFromNaturalLanguage(
   naturalLanguageQuery: string,
   variables: Record<string, any>,
   openaiSettings: OpenAISettings
-): Promise<{ objectName: string; filterParams: string }> {
+): Promise<{ objectName: string; filterParams: string; formattedQuery: string; description: string }> {
   try {
     // Replace variables in the query first
     let processedQuery = naturalLanguageQuery
@@ -762,46 +858,76 @@ async function generateQueryFromNaturalLanguage(
       processedQuery = processedQuery.replace(new RegExp(`\\{${key}\\}`, 'gi'), String(value))
     })
 
-    // Calculate one year ago date
+    // Calculate dates for context
     const oneYearAgo = new Date()
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
     const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0]
     const todayStr = new Date().toISOString().split('T')[0]
+    const tenDaysAgo = new Date()
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10)
+    const tenDaysAgoStr = tenDaysAgo.toISOString().split('T')[0]
 
-    // Ultra-optimized prompt for fastest response
-    const commonObjects = ['Orders', 'Invoices', 'Items', 'BusinessPartners']
-    const prompt = `Query: "${processedQuery}"
+    // Enhanced prompt to generate clear, detailed queries like ChatGPT
+    const commonObjects = ['Orders', 'Invoices', 'Items', 'BusinessPartners', 'DeliveryNotes', 'PurchaseOrders', 'CreditNotes']
+    const prompt = `You are a SAP Business One expert. Generate a clear, detailed query for the user's request.
 
-Objects: ${commonObjects.join(', ')}
+User Request: "${processedQuery}"
+
+Available SAP B1 Service Layer Objects: ${commonObjects.join(', ')}
+
+Generate a response in JSON format with:
+1. objectName: The SAP B1 object to query (e.g., "Orders", "Invoices", "Items")
+2. filterParams: OData filter string (e.g., "$filter=DocDate ge '2024-01-01'")
+3. formattedQuery: A clear, human-readable description of the query in SQL-like format
+4. description: A brief explanation of what the query does
 
 Rules:
-- "pending/open" → Orders, $filter=DocumentStatus eq 'bost_Open'
-- "sales" → Invoices, $filter=DocDate ge '${oneYearAgoStr}'
-- "all" → NO filter
-- Only $top if "top X"
+- For date ranges: Use $filter=DocDate ge 'YYYY-MM-DD' for "past X days" or date ranges
+- For status: Use $filter=DocumentStatus eq 'bost_Open' for open/pending orders
+- For "top X": Use $top=X
+- Format the formattedQuery like a SQL query with SELECT, FROM, WHERE, ORDER BY
+- Make it clear and readable, similar to how ChatGPT displays SQL queries
 
-JSON: {"objectName": "Orders", "filterParams": ""}`
+Example for "list of orders for past 10 days":
+{
+  "objectName": "Orders",
+  "filterParams": "$filter=DocDate ge '${tenDaysAgoStr}'&$orderby=DocDate desc",
+  "formattedQuery": "SELECT DocNum AS 'Order No', DocDate AS 'Posting Date', CardCode AS 'Customer Code', CardName AS 'Customer Name', DocTotal AS 'Order Total' FROM ORDR WHERE DocDate >= '${tenDaysAgoStr}' ORDER BY DocDate DESC",
+  "description": "Retrieves all sales orders created in the past 10 days, ordered by date (newest first)"
+}
 
+Now generate the response for: "${processedQuery}"
+
+Return ONLY valid JSON, no markdown, no code blocks.`
+
+    // Validate and prepare API key
+    const apiKey = (openaiSettings.openaiApiKey || '').trim()
+    if (!apiKey || apiKey.length < 20) {
+      throw new Error('Invalid OpenAI API key: key is missing or too short')
+    }
+    
+    console.log('[OpenAI] Using API key prefix:', apiKey.substring(0, 20) + '...')
+    
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiSettings.openaiApiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: openaiSettings.openaiModel,
+        model: openaiSettings.openaiModel || OPENAI_MODEL,
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that selects SAP B1 Service Layer objects and generates filter parameters. Always return valid JSON only.',
+            content: 'You are a SAP Business One expert assistant. Generate clear, detailed queries in JSON format. Always return valid JSON only, no markdown, no code blocks.',
           },
           {
             role: 'user',
             content: prompt,
           },
         ],
-        temperature: 0.1,
-        max_tokens: 100,
+        temperature: 0.2,
+        max_tokens: 300,
       }),
     })
 
@@ -851,9 +977,12 @@ JSON: {"objectName": "Orders", "filterParams": ""}`
       }
     }
 
+    // Ensure all fields are present with defaults
     return {
       objectName: result.objectName,
-      filterParams: result.filterParams || ''
+      filterParams: result.filterParams || '',
+      formattedQuery: result.formattedQuery || `SELECT * FROM ${result.objectName}${result.filterParams ? ' WHERE ' + result.filterParams.replace('$filter=', '').replace(/&/g, ' AND ') : ''}`,
+      description: result.description || `Query to retrieve ${result.objectName} data`
     }
   } catch (error) {
     console.error('OpenAI API error:', error)
@@ -867,7 +996,8 @@ async function executeSAPB1Query(
   objectName: string,
   filterParams: string = '',
   fetchAll: boolean = true,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  requestedLimit?: number | null
 ): Promise<any> {
   try {
     // Clean up server URL - extract base URL from login URL
@@ -879,8 +1009,9 @@ async function executeSAPB1Query(
       serverUrl = serverUrl.replace('/b1s/v1', '').replace(/\/$/, '')
     }
     
-    // If fetchAll is true, use pagination to get all records
-    if (fetchAll) {
+    // If fetchAll is true OR user specified a limit, use pagination
+    // (SAP B1 may have default limits, so we need pagination even for limited requests)
+    if (fetchAll || requestedLimit) {
       const allResults: any[] = []
       let skip = 0
       const pageSize = 1000 // Fetch 1000 records at a time
@@ -903,19 +1034,27 @@ async function executeSAPB1Query(
         // Check if $top is already in filterParams (user explicitly requested a limit)
         const hasTopInFilter = filterParams && filterParams.includes('$top=')
         
+        // Calculate how many records we still need
+        const recordsNeeded = requestedLimit ? requestedLimit - allResults.length : pageSize
+        const recordsToFetch = Math.min(recordsNeeded, pageSize)
+        
+        // Remove $top from filterParams if it exists (we'll handle pagination manually)
+        if (hasTopInFilter) {
+          queryParams = queryParams.replace(/&\$top=\d+|^\$top=\d+&?|\$top=\d+/, '').replace(/^&+|&+$/, '')
+        }
+        
         // Add pagination parameters and request count
         // Use $count=true to get total record count
-        // Only add $top if user didn't explicitly request a limit (for internal pagination)
         if (queryParams) {
-          if (hasTopInFilter) {
-            // User requested a specific limit, just add skip and count for pagination
-            queryParams += `&$skip=${skip}&$count=true&$inlinecount=allpages`
-          } else {
-            // No user limit, add our pagination $top for efficient fetching
-            queryParams += `&$skip=${skip}&$top=${pageSize}&$count=true&$inlinecount=allpages`
-          }
+          queryParams += `&$skip=${skip}&$top=${recordsToFetch}&$count=true&$inlinecount=allpages`
         } else {
-          queryParams = `$skip=${skip}&$top=${pageSize}&$count=true&$inlinecount=allpages`
+          queryParams = `$skip=${skip}&$top=${recordsToFetch}&$count=true&$inlinecount=allpages`
+        }
+        
+        // If we have a requested limit and already have enough records, stop
+        if (requestedLimit && allResults.length >= requestedLimit) {
+          hasMore = false
+          break
         }
         
         // Build the query URL
@@ -941,7 +1080,19 @@ async function executeSAPB1Query(
         
         if (pageResult.value && Array.isArray(pageResult.value)) {
           const recordsReceived = pageResult.value.length
-          allResults.push(...pageResult.value)
+          
+          // If we have a requested limit, only add the records we need
+          if (requestedLimit) {
+            const recordsToAdd = Math.min(recordsReceived, requestedLimit - allResults.length)
+            allResults.push(...pageResult.value.slice(0, recordsToAdd))
+            if (allResults.length >= requestedLimit) {
+              console.log(`✓ Reached requested limit: ${requestedLimit} records`)
+              hasMore = false
+              break
+            }
+          } else {
+            allResults.push(...pageResult.value)
+          }
           
           // Get total count from server if available (usually in first response)
           // Try multiple possible count fields
@@ -967,6 +1118,13 @@ async function executeSAPB1Query(
           }
           
           console.log(`Page ${Math.floor(skip / pageSize) + 1}: Received ${recordsReceived} records, Total so far: ${allResults.length}`)
+          
+          // If we have a requested limit, check if we've reached it
+          if (requestedLimit && allResults.length >= requestedLimit) {
+            hasMore = false
+            console.log(`✓ Reached requested limit: ${requestedLimit} records`)
+            break
+          }
           
           // If we have total count from server, use it to determine if we need to continue
           if (totalCountFromServer !== null && totalCountFromServer > 0) {
@@ -1061,34 +1219,33 @@ async function executeSAPB1Query(
       console.log(`Returning ${allResults.length} total records to client`)
       return finalResult
     } else {
-      // Single request logic - respect $top limit, no pagination
-      // Build query parameters - use the filterParams as-is (should already have $top=15)
+      // Single request logic - respect $top limit if specified, otherwise fetch all
+      // Build query parameters - use the filterParams as-is
       let queryParams = filterParams || ''
       
-      // If no $top is specified, add a small default limit for fast loading
-      if (!queryParams.includes('$top=')) {
-        if (queryParams) {
-          queryParams += '&$top=15'
-        } else {
-          queryParams = '$top=15'
-        }
-      } else {
-        // Extract the $top value and ensure it's not too large
-        const topMatch = queryParams.match(/\$top=(\d+)/)
-        if (topMatch) {
-          const topValue = parseInt(topMatch[1], 10)
-          // If $top is too large, limit it to 15 for faster loading
-          if (topValue > 15) {
-            queryParams = queryParams.replace(/\$top=\d+/, '$top=15')
-          }
-        }
-      }
+      // If user specified $top, respect it exactly (don't modify)
+      // If no $top specified, we'll fetch all records (no limit)
+      // Don't add any default limit
       
       const endpoint = `b1s/v1/${objectName}${queryParams ? '?' + queryParams : ''}`
       const url = `${serverUrl}/${endpoint}`
       
       console.log('Executing SAP B1 Query:', url)
-      return await makeSAPB1Request(sessionId, url, serverUrl)
+      const singleResult = await makeSAPB1Request(sessionId, url, serverUrl)
+      
+      console.log('SAP B1 Response type:', Array.isArray(singleResult) ? 'array' : typeof singleResult)
+      console.log('SAP B1 Response length:', Array.isArray(singleResult) ? singleResult.length : (singleResult?.value?.length || 'N/A'))
+      
+      // If result is an array, return it; if it's an object with value property, return that
+      if (Array.isArray(singleResult)) {
+        console.log(`Returning array with ${singleResult.length} records`)
+        return singleResult
+      } else if (singleResult && singleResult.value && Array.isArray(singleResult.value)) {
+        console.log(`Returning value array with ${singleResult.value.length} records`)
+        return singleResult.value
+      }
+      console.log('Returning single result object')
+      return singleResult
     }
   } catch (error) {
     console.error('SAP B1 Query execution error:', error)
@@ -1176,6 +1333,19 @@ async function makeSAPB1Request(sessionId: string, url: string, serverUrl: strin
   }
 
   const data = await response.json()
+  
+  // Log the response to debug why we're getting fewer records than requested
+  if (data && typeof data === 'object') {
+    if (Array.isArray(data)) {
+      console.log(`[makeSAPB1Request] Response is array with ${data.length} records`)
+    } else if (data.value && Array.isArray(data.value)) {
+      console.log(`[makeSAPB1Request] Response has value array with ${data.value.length} records`)
+      if (data['@odata.count'] !== undefined) {
+        console.log(`[makeSAPB1Request] OData count: ${data['@odata.count']} (actual returned: ${data.value.length})`)
+      }
+    }
+  }
+  
   return data
 }
 
@@ -1238,13 +1408,20 @@ export async function POST(request: NextRequest) {
     // Step 2: Generate query from natural language - get object name and filters
     let queryResult: { objectName: string; filterParams: string }
     try {
+      // Always use hardcoded key (hidden from users)
+      const openaiConfig = {
+        openaiApiKey: OPENAI_API_KEY,
+        openaiModel: settings.openaiModel || OPENAI_MODEL,
+      }
+      
+      // Debug: Log API key prefix (first 10 chars) to verify it's being used
+      console.log('[OpenAI Config] Using API key:', OPENAI_API_KEY.substring(0, 15) + '...')
+      console.log('[OpenAI Config] Model:', openaiConfig.openaiModel)
+      
       queryResult = await generateQueryFromNaturalLanguage(
         query,
         variables,
-        {
-          openaiApiKey: settings.openaiApiKey,
-          openaiModel: settings.openaiModel,
-        }
+        openaiConfig
       )
       console.log('Selected SAP B1 Object:', queryResult.objectName)
       console.log('Filter Parameters:', queryResult.filterParams || 'None')
@@ -1267,30 +1444,33 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Step 3: Execute the query using the selected object (limit to top 15 records for faster loading)
+    // Step 3: Execute the query using the selected object
     let result: any
-    // Add $top=15 to limit results to top 15 records for faster loading (define outside try for retry access)
-    let limitedFilterParams = queryResult.filterParams || ''
-    if (limitedFilterParams) {
-      // Check if $top is already in filterParams
-      if (!limitedFilterParams.includes('$top=')) {
-        limitedFilterParams += `&$top=15`
-      } else {
-        // Replace existing $top with 15 if it's higher
-        limitedFilterParams = limitedFilterParams.replace(/\$top=\d+/, '$top=15')
+    // Check if user specified a limit in the query (e.g., "top 10")
+    const filterParams = queryResult.filterParams || ''
+    const hasUserLimit = filterParams.includes('$top=')
+    
+    // Extract the requested limit if user specified one
+    let requestedLimit: number | null = null
+    if (hasUserLimit) {
+      const topMatch = filterParams.match(/\$top=(\d+)/)
+      if (topMatch) {
+        requestedLimit = parseInt(topMatch[1], 10)
       }
-    } else {
-      limitedFilterParams = '$top=15'
     }
     
+    // If user specified a limit, we need to use pagination to ensure we get exactly that many
+    // (SAP B1 may have default limits that prevent getting all records in one request)
+    // If no limit specified, fetch all records
     try {
       result = await executeSAPB1Query(
         sessionId,
         settings.sapServer,
         queryResult.objectName,
-        limitedFilterParams,
-        false, // Don't fetch all, we only want top 15 records
-        signal // Pass abort signal
+        filterParams,
+        !hasUserLimit, // Fetch all if no user limit, otherwise use pagination to get exact limit
+        signal, // Pass abort signal
+        requestedLimit // Pass the requested limit so pagination can stop at that number
       )
       console.log('Query executed successfully, result type:', Array.isArray(result) ? 'array' : typeof result)
       
@@ -1319,9 +1499,10 @@ export async function POST(request: NextRequest) {
               newSessionId,
               settings.sapServer,
               queryResult.objectName,
-              limitedFilterParams, // Use limited params with $top=15
-              false, // Don't fetch all, respect the limit
-              signal
+              filterParams, // Use original filter params (respect user limit if specified)
+              !hasUserLimit, // Fetch all if no user limit, otherwise use pagination to get exact limit
+              signal,
+              requestedLimit // Pass the requested limit
             )
             console.log('Retry with new session successful')
           } else {
@@ -1341,15 +1522,22 @@ export async function POST(request: NextRequest) {
           queryResult.filterParams && 
           (errorMessage.includes('invalid') || errorMessage.includes('Property'))) {
         // If error is due to invalid property and we're querying Items, retry without filter
+        // But preserve $top limit if user specified one
         console.log('Retrying Items query without filter due to invalid property error')
         try {
+          // Extract $top from original filterParams if it exists
+          const topMatch = filterParams.match(/\$top=(\d+)/)
+          const retryParams = topMatch ? `$top=${topMatch[1]}` : ''
+          const retryLimit = topMatch ? parseInt(topMatch[1], 10) : null
+          
           result = await executeSAPB1Query(
             sessionId,
             settings.sapServer,
             queryResult.objectName,
-            '$top=15', // Retry with top 15 limit for fast loading
-            false, // Don't fetch all, respect the limit
-            signal
+            retryParams, // Retry with only $top limit if user specified one
+            !topMatch, // Fetch all if no user limit, otherwise use pagination to get exact limit
+            signal,
+            retryLimit // Pass the requested limit
           )
           console.log('Retry successful, filtering results client-side')
         } catch (retryError: any) {
@@ -1402,16 +1590,49 @@ export async function POST(request: NextRequest) {
 
     console.log(`Final response: ${chartData.length} records will be sent to client`)
 
-    // Step 6: Fast data analysis to recommend chart types (no API call, instant)
-    const recommendedChartTypes = analyzeDataForChartTypes(chartData, query)
+    // Step 6: AI-powered chart configuration (best chart type + field mapping)
+    let chartConfig: {
+      bestChartType: 'pie' | 'bar' | 'line'
+      xAxisField?: string
+      yAxisField?: string
+      groupByField?: string
+      recommendedTypes?: ('pie' | 'bar' | 'line')[]
+    }
+    
+    try {
+      chartConfig = await analyzeChartConfigurationWithAI(
+        chartData,
+        query,
+        {
+          openaiApiKey: OPENAI_API_KEY,
+          openaiModel: settings.openaiModel || OPENAI_MODEL,
+        }
+      )
+    } catch (aiError) {
+      console.warn('AI chart configuration failed, using local analysis:', aiError)
+      // Fallback to local analysis if AI fails
+      const recommendedTypes = analyzeDataForChartTypes(chartData, query)
+      chartConfig = {
+        bestChartType: recommendedTypes[0] || 'bar',
+        recommendedTypes
+      }
+    }
 
     return NextResponse.json({
       success: true,
       query: `${queryResult.objectName}${queryResult.filterParams ? '?' + queryResult.filterParams : ''}`,
       objectName: queryResult.objectName,
+      formattedQuery: (queryResult as any).formattedQuery || '',
+      description: (queryResult as any).description || '',
       data: chartData,
       rawResult: result,
-      recommendedChartTypes, // Smart chart type recommendations
+      recommendedChartTypes: chartConfig.recommendedTypes || [chartConfig.bestChartType],
+      bestChartType: chartConfig.bestChartType,
+      chartConfig: {
+        xAxisField: chartConfig.xAxisField,
+        yAxisField: chartConfig.yAxisField,
+        groupByField: chartConfig.groupByField,
+      }
     }, {
       headers: corsHeaders,
     })
