@@ -5,8 +5,8 @@ import { BarChart3, PieChart, TrendingUp, Table2, Sparkles } from 'lucide-react'
 interface RecommendedVisualizationsProps {
   data: any[]
   onSelectVisualization: (type: 'bar' | 'pie' | 'line' | 'table' | 'kpi') => void
-  recommendedTypes?: ('pie' | 'bar' | 'line')[]
-  bestChartType?: 'pie' | 'bar' | 'line' // AI's best recommendation
+  recommendedTypes?: ('pie' | 'bar' | 'line' | 'kpi')[]
+  bestChartType?: 'pie' | 'bar' | 'line' | 'kpi' // AI's best recommendation
 }
 
 export default function RecommendedVisualizations({ 
@@ -42,6 +42,15 @@ export default function RecommendedVisualizations({
       color: 'purple',
       recommended: recommendedTypes.includes('pie'),
       isBest: bestChartType === 'pie'
+    },
+ {
+      id: 'kpi' as const,
+      icon: kpiChart,
+      title: 'kpi Chart',
+      description: 'Compare proportions and percentages',
+      color: 'purple',
+      recommended: recommendedTypes.includes('kpi'),
+      isBest: bestChartType === 'kpi'
     },
     {
       id: 'table' as const,

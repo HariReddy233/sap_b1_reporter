@@ -6,12 +6,15 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface ChartDisplayProps {
   data: any[]
-  chartType: 'pie' | 'bar' | 'line'
+  chartType: 'pie' | 'bar' | 'line' | 'table' | 'kpi'
   chartConfig?: {
     xAxisField?: string
     yAxisField?: string
     groupByField?: string
   }
+  currentPage?: number
+  rowsPerPage?: number
+  onPageChange?: (page: number) => void
 }
 
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#f97316', '#6366f1', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#ef4444', '#8b5cf6', '#3b82f6']
